@@ -2,14 +2,14 @@
 
 #define __B_Zhang__
 
-//void main(int argc, char *argv[])
-//{
-//	replay(argv[1]);
-//}
-int main()
+void main(int argc, char *argv[])
 {
-    replay("config/config.ini");
+	replay(argv[1]);
 }
+//int main()
+//{
+//    replay("config/config.ini");
+//}
 
 void replay(char *configName)
 {
@@ -20,7 +20,7 @@ void replay(char *configName)
 	char *buf;
 	int i;
 	long long initTime,nowTime,reqTime,waitTime;
-    long long execTime;//for bzhang's experiment
+        long long execTime;//for bzhang's experiment
 	
 	config=(struct config_info *)malloc(sizeof(struct config_info));
 	memset(config,0,sizeof(struct config_info));
@@ -63,7 +63,7 @@ void replay(char *configName)
 	init_aio();
 
 	initTime=time_now();
-    execTime=0;
+        execTime=0;
 	//printf("initTime=%lld\n",initTime);
 	while(trace->front)
 	{
@@ -71,13 +71,14 @@ void replay(char *configName)
 		reqTime=req->time;
 		nowTime=time_elapsed(initTime);
 #ifdef  __B_Zhang__
-        if(nowTime-execTime > config->exec)
+        if(nowTime-execTime > config->exec * 1000000)
         {
             sleep(config->idle);
-		    execTime=time_elapsed(initTime);
+            execTime=time_elapsed(initTime);
         }
 #endif
 
+		nowTime=time_elapsed(initTime);
 		while(nowTime < reqTime)
 		{
 			//usleep(waitTime);
