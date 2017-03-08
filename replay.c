@@ -89,14 +89,14 @@ void replay(char *configName)
         
 	    submit_aio(fd,buf,req,trace,initTime);
 	}
-    i=0;
+        i=0;
 	while(trace->inNum > trace->outNum)
 	{
-        i++;
-        if(i>100)
-        {
-            break;
-        }
+                //i++;
+                //if(i>100)
+                //{
+                //      break;
+                //}
 		printf("trace->inNum=%d\n",trace->inNum);
 		printf("trace->outNum=%d\n",trace->outNum);
 		printf("begin sleepping 1 second------\n");
@@ -113,7 +113,7 @@ void replay(char *configName)
 static void handle_aio(sigval_t sigval)
 {
 	struct aiocb_info *cb;
-	int latency_submit,latency_issue;
+	unsigned long long latency_submit,latency_issue;
 	int error;
 	int count;
 
@@ -141,7 +141,7 @@ static void handle_aio(sigval_t sigval)
 		fprintf(stderr, "Warning I/O completed:%db but requested:%ldb\n",
 			count,cb->aiocb->aio_nbytes);
 	}
-	fprintf(cb->trace->logFile,"%-16lf %-12lld %-12lld %-5d %-2d %-2d %d \n",
+	fprintf(cb->trace->logFile,"%-16lf %-12lld %-12lld %-5d %-2d %-2lld %lld \n",
 				cb->req->time,cb->req->waitTime,cb->req->lba,cb->req->size,cb->req->type,latency_submit,latency_issue);
 	fflush(cb->trace->logFile);
 
