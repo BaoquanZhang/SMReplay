@@ -31,11 +31,11 @@
 #define BLOCK_PER_DRIVE		    (long long)8*1024*1024*1024*2	//8TB Drive capacity (blks)
 
 struct config_info{
-	char device[64];
+	char device[10][64];
 	char traceFileName[64];
 	char logFileName[64];
-    unsigned int exec;
-    unsigned int idle;
+        unsigned int exec;
+        unsigned int idle;
 };
 
 struct req_info{

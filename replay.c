@@ -1,6 +1,7 @@
 #include "replay.h"
 
 #define __B_Zhang__
+#define DEBUG 1
 
 void main(int argc, char *argv[])
 {
@@ -16,9 +17,9 @@ void replay(char *configName)
 	struct config_info *config;
 	struct trace_info *trace;
 	struct req_info *req;
-	int fd;
+	int fd[10];
 	char *buf;
-	int i;
+	int i,j;
 	long long initTime,nowTime,reqTime,waitTime;
         long long execTime;//for bzhang's experiment
 	
@@ -38,16 +39,23 @@ void replay(char *configName)
 	//printf("trace->inNum=%d\n",trace->inNum);
 	//printf("trace->outNum=%d\n",trace->outNum);
 	//printf("trace->latencySum=%lld\n",trace->latencySum);
-
-	printf("config->device=%s\n",config->device);
+        if (DEBUG == 1) {
+                printf("Devices:\n");
+                while (j < 10) {
+                        printf("%s\n", config->device[j]);
+                        j++;
+                }
+                return;
+        }
+        for (j = 0; j < 10; j++) {
+                fd[j] = open(config->device[j], O_DIRECT | O_SYNC | O_RDWR); 
+                if (fd[j] < 0) {
+                        fprintf(stderr, "Value of errno: %d\n", errno);
+                        printf("Cannot open\n");
+                        exit(-1);
+                }
+        }
 	
-	fd = open(config->device, O_DIRECT | O_SYNC | O_RDWR); 
-	if(fd < 0) 
-	{
-		fprintf(stderr, "Value of errno: %d\n", errno);
-                printf("Cannot open\n");
-                exit(-1);
-	}
 
 	if (posix_memalign((void**)&buf, MEM_ALIGN, LARGEST_REQUEST_SIZE * BYTE_PER_BLOCK))
 	{
@@ -87,7 +95,7 @@ void replay(char *configName)
 		req->waitTime=nowTime-reqTime;
                 //printf("wait time =%lld us\n",waitTime);
 
-                submit_aio(fd,buf,req,trace,initTime);
+                submit_aio(fd[0],buf,req,trace,initTime);
 	}
 
         i=0;
@@ -244,18 +252,20 @@ void config_read(struct config_info *config,const char *filename)
 	char line[BUFSIZE];
 	char *ptr;
 	FILE *configFile;
+        int diskid;
 	
 	configFile=fopen(filename,"r");
-	if(configFile==NULL)
+	if(configFile == NULL)
 	{
 		printf("error: opening config file\n");
 		exit(-1);
 	}
 	//read config file
 	memset(line,0,sizeof(char)*BUFSIZE);
+        diskid = 0;
 	while(fgets(line,sizeof(line),configFile))
 	{
-		if(line[0]=='#'||line[0]==' ') 
+		if(line[0] == '#'||line[0] == ' ') 
 		{
 			continue;
 		}
@@ -272,9 +282,9 @@ void config_read(struct config_info *config,const char *filename)
 		}
                 line[name]=0;
 
-		if(strcmp(line,"device")==0)
+		if(strcmp(line,"device")==0 && diskid < 10)
 		{
-			sscanf(line+value,"%s",config->device);
+			sscanf(line+value,"%s",config->device[diskid++]);
 		}
 		else if(strcmp(line,"trace")==0)
 		{
