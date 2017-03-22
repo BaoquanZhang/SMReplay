@@ -45,8 +45,8 @@ void replay(char *configName)
 	if(fd < 0) 
 	{
 		fprintf(stderr, "Value of errno: %d\n", errno);
-       	printf("Cannot open\n");
-    	exit(-1);
+                printf("Cannot open\n");
+                exit(-1);
 	}
 
 	if (posix_memalign((void**)&buf, MEM_ALIGN, LARGEST_REQUEST_SIZE * BYTE_PER_BLOCK))
@@ -71,11 +71,11 @@ void replay(char *configName)
 		reqTime=req->time;
 		nowTime=time_elapsed(initTime);
 #ifdef  __B_Zhang__
-        if(nowTime-execTime > config->exec * 1000000)
-        {
-            sleep(config->idle);
-            execTime=time_elapsed(initTime);
-        }
+                if(nowTime-execTime > config->exec * 1000000)
+                {
+                        sleep(config->idle);
+                        execTime=time_elapsed(initTime);
+                }
 #endif
 
 		nowTime=time_elapsed(initTime);
@@ -85,10 +85,11 @@ void replay(char *configName)
 			nowTime=time_elapsed(initTime);
 		}
 		req->waitTime=nowTime-reqTime;
-        //printf("wait time =%lld us\n",waitTime);
-        
-	    submit_aio(fd,buf,req,trace,initTime);
+                //printf("wait time =%lld us\n",waitTime);
+
+                submit_aio(fd,buf,req,trace,initTime);
 	}
+
         i=0;
 	while(trace->inNum > trace->outNum)
 	{
@@ -142,7 +143,9 @@ static void handle_aio(sigval_t sigval)
 			count,cb->aiocb->aio_nbytes);
 	}
 	fprintf(cb->trace->logFile,"%-16lf %-12lld %-12lld %-5d %-2d %-2lld %lld \n",
-				cb->req->time,cb->req->waitTime,cb->req->lba,cb->req->size,cb->req->type,latency_submit,latency_issue);
+				cb->req->time,cb->req->waitTime,cb->req->lba,cb->req->size,
+                                cb->req->type,latency_submit,latency_issue);
+
 	fflush(cb->trace->logFile);
 
 	cb->trace->outNum++;
@@ -199,13 +202,14 @@ static void submit_aio(int fd, void *buf, struct req_info *req,struct trace_info
 	cb->req->lba=req->lba;
 	cb->req->size=req->size;
 	cb->req->type=req->type;
-    cb->req->waitTime=req->waitTime;
+        cb->req->waitTime=req->waitTime;
 
 	/********************************/
-    cb->beginTime_submit=time_now();// latency from the req was submitted
-    cb->beginTime_issue=req->time+initTime; //latency from the req was issued 
-    /********************************/
-	cb->trace=trace;
+        cb->beginTime_submit=time_now();// latency from the req was submitted
+        cb->beginTime_issue=req->time+initTime; //latency from the req was issued 
+        /********************************/
+	
+        cb->trace=trace;
 
 	if(req->type==1)
 	{
@@ -255,18 +259,18 @@ void config_read(struct config_info *config,const char *filename)
 		{
 			continue;
 		}
-    	ptr=strchr(line,'=');
-	    if(!ptr)
+                ptr=strchr(line,'=');
+                if(!ptr)
 		{
 			continue;
 		} 
-       	name=ptr-line;	//the end of name string+1
-       	value=name+1;	//the start of value string
-	    while(line[name-1]==' ') 
+                name=ptr-line;	//the end of name string+1
+                value=name+1;	//the start of value string
+                while(line[name-1]==' ') 
 		{
 			name--;
 		}
-       	line[name]=0;
+                line[name]=0;
 
 		if(strcmp(line,"device")==0)
 		{
@@ -319,13 +323,13 @@ void trace_read(struct config_info *config,struct trace_info *trace)
 			continue;
 		}
 		trace->inNum++;	//track the process of IO requests
-        //time:ms, lba:sectors, size:sectors, type:1<->write 0<-->read
+                //time:ms, lba:sectors, size:sectors, type:1<->write 0<-->read
 		sscanf(line,"%lf %lld %d %d",&req->time,&req->lba,&req->size,&req->type);
 		//push into request queue
 		req->time=req->time*1000;	//ms-->us
 		req->size=req->size*BYTE_PER_BLOCK;
 		req->lba=req->lba*BYTE_PER_BLOCK;
-        req->waitTime=0;
+                req->waitTime=0;
 		queue_push(trace,req);
 	}
 	fclose(traceFile);
@@ -351,7 +355,7 @@ void queue_push(struct trace_info *trace,struct req_info *req)
 	temp->lba = req->lba;
 	temp->size = req->size;
 	temp->type = req->type;
-    temp->waitTime=req->waitTime;
+        temp->waitTime=req->waitTime;
 	temp->next = NULL;
 	if(trace->front == NULL && trace->rear == NULL)
 	{
@@ -376,7 +380,7 @@ void queue_pop(struct trace_info *trace,struct req_info *req)
 	req->lba  = trace->front->lba;
 	req->size = trace->front->size;
 	req->type = trace->front->type;	
-    req->waitTime=trace->front->waitTime;
+        req->waitTime=trace->front->waitTime;
 	if(trace->front == trace->rear) 
 	{
 		trace->front = trace->rear = NULL;

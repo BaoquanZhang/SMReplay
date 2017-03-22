@@ -1,4 +1,4 @@
-# TraceReplayer
+# RAID action emulator
 
 ## Building
 make

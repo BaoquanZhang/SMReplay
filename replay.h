@@ -43,7 +43,7 @@ struct req_info{
 	long long lba;
 	unsigned int size;
 	unsigned int type;
-    long long waitTime;
+        long long waitTime;
 	struct req_info *next;
 };
 
