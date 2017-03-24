@@ -36,6 +36,7 @@ struct config_info{
 	char logFileName[64];
         unsigned int exec;
         unsigned int idle;
+        unsigned int diskNum;
 };
 
 struct req_info{
@@ -45,6 +46,8 @@ struct req_info{
 	unsigned int type;
         long long waitTime;
 	struct req_info *next;
+        struct req_info *parent;
+        unsigned int child;
 };
 
 struct trace_info{
@@ -83,6 +86,7 @@ long long time_elapsed(long long begin);
 static void handle_aio(sigval_t sigval);
 static void submit_aio(int fd, void *buf,struct req_info *req,struct trace_info *trace,long long initTime);
 static void init_aio();
+void split_req(struct req_info * parent, int diskNum);
 
 //queue.c
 void queue_push(struct trace_info *trace,struct req_info *req);

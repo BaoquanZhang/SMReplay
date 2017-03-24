@@ -1,7 +1,9 @@
 #include "replay.h"
 
-#define __B_Zhang__
+//#define __B_Zhang__
 #define DEBUG 1
+#define CHUNK_SIZE 512
+
 
 void main(int argc, char *argv[])
 {
@@ -45,9 +47,9 @@ void replay(char *configName)
                         printf("%s\n", config->device[j]);
                         j++;
                 }
-                return;
+                //return;
         }
-        for (j = 0; j < 10; j++) {
+        for (j = 0; j < config->diskNum; j++) {
                 fd[j] = open(config->device[j], O_DIRECT | O_SYNC | O_RDWR); 
                 if (fd[j] < 0) {
                         fprintf(stderr, "Value of errno: %d\n", errno);
@@ -75,7 +77,12 @@ void replay(char *configName)
 	//printf("initTime=%lld\n",initTime);
 	while(trace->front)
 	{
-		queue_pop(trace,req);
+		queue_pop(trace, req);
+                split_req(req, config->diskNum);
+                free(req);
+                for (j = 0; j < config->diskNum; j++)
+                        close(fd[j]);
+                return;
 		reqTime=req->time;
 		nowTime=time_elapsed(initTime);
 #ifdef  __B_Zhang__
@@ -230,7 +237,7 @@ static void submit_aio(int fd, void *buf, struct req_info *req,struct trace_info
 	//while(aio_error(cb->aiocb)==EINPROGRESS);
 	if(error)
 	{
-		fprintf(stderr, "Error performing i/o");
+                fprintf(stderr, "Error performing i/o");
 		exit(-1);
 	}
 }
@@ -304,6 +311,7 @@ void config_read(struct config_info *config,const char *filename)
 		}
 		memset(line,0,sizeof(char)*BUFSIZE);
 	}
+        config->diskNum = diskid;
 	fclose(configFile);
 }
 
@@ -378,7 +386,55 @@ void queue_push(struct trace_info *trace,struct req_info *req)
 	}
 }
 
-void queue_pop(struct trace_info *trace,struct req_info *req) 
+void split_req(struct req_info * parent, int diskNum)
+{
+        unsigned int chunk_size = CHUNK_SIZE * 1024;
+        unsigned int stripe_size = chunk_size * (diskNum - 1);
+        int len;
+        long long req_end = parent->lba + parent->size;
+        unsigned long stripe_id;
+        unsigned int data_id;
+        unsigned int chunk_offset;
+        unsigned int parity_id;
+        unsigned int disk_id;
+        unsigned long long lba;
+        unsigned long long slice;
+
+        stripe_id = 0;
+        parity_id = 0;
+        printf("########request lba = %lld, size = %d\n", parent->lba, parent->size);
+        printf("Disk num = %d\n", diskNum);
+        for (slice = parent->lba; ; slice += chunk_size) {
+                if (slice + chunk_size <= req_end)
+                        len = chunk_size;
+                else if (slice + chunk_size > req_end)
+                        len = req_end - slice;
+
+                printf("len = %d\n", len);
+
+                if (len <= 0)
+                        break;
+
+                data_id = (slice % stripe_size) / chunk_size;
+                chunk_offset = (slice % stripe_size) % chunk_size;
+                
+                if (stripe_id != slice / stripe_size) {
+                        stripe_id = slice / stripe_size;
+                        parity_id = stripe_id % diskNum;
+                        lba = parent->lba / (diskNum -1) + chunk_offset;
+                        printf("stripe id = %ld\n", stripe_id);
+                        printf("parity id = %d, lba = %lld\n", parity_id, lba);
+                }
+
+                if (data_id < parity_id)
+                        disk_id = data_id;
+                else
+                        disk_id = data_id + 1;
+                printf("disk id = %d, lba = %lld\n", disk_id, lba);
+        }
+}
+
+void queue_pop(struct trace_info *trace, struct req_info *req) 
 {
 	struct req_info* temp = trace->front;
 	if(trace->front == NULL) 
