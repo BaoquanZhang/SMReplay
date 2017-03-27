@@ -1,17 +1,23 @@
-cscope 15 $HOME/SMRRAID/SMReplay               0000179248
+cscope 15 $HOME/SMRRAID/SMReplay               0000182618
 	@replay.c
 
 1 
 	~"»¶ay.h
 "
 
-3 
-	#__B_Zhªg__
-
+4 
+	#DEBUG
+ 1
 
 	)
 
-5 
+5 
+	#CHUNK_SIZE
+ 512
+
+	)
+
+8 
 	$maš
 (
 ¬gc
@@ -19,53 +25,55 @@ cscope 15 $HOME/SMRRAID/SMReplay               0000179248
 ¬gv
 [])
 
-7 
+10 
 	`»¶ay
 (
 ¬gv
 [1]);
 
-8 
+11 
 	}
 }
 
-14 
+17 
 	$»¶ay
 (*
 cÚfigName
 )
 
-16 
+19 
 cÚfig_šfo
  *
 cÚfig
 ;
 
-17 
+20 
 Œaû_šfo
  *
 Œaû
 ;
 
-18 
+21 
 »q_šfo
  *
 »q
 ;
 
-19 
+22 
 fd
-;
+[10];
 
-20 *
+23 *
 buf
 ;
 
-21 
+24 
 i
+,
+j
 ;
 
-22 
+25 
 š™Time
 ,
 nowTime
@@ -75,11 +83,11 @@ nowTime
 wa™Time
 ;
 
-23 
+26 
 execTime
 ;
 
-25 
+28 
 cÚfig
 =(
 cÚfig_šfo
@@ -87,7 +95,7 @@ cÚfig_šfo
 	`m®loc
 ((config_info));
 
-26 
+29 
 	`mem£t
 (
 cÚfig
@@ -95,7 +103,7 @@ cÚfig
 cÚfig_šfo
 ));
 
-27 
+30 
 Œaû
 =(
 Œaû_šfo
@@ -103,7 +111,7 @@ cÚfig_šfo
 	`m®loc
 ((trace_info));
 
-28 
+31 
 	`mem£t
 (
 Œaû
@@ -111,7 +119,7 @@ cÚfig_šfo
 Œaû_šfo
 ));
 
-29 
+32 
 »q
 =(
 »q_šfo
@@ -119,7 +127,7 @@ cÚfig_šfo
 	`m®loc
 ((req_info));
 
-30 
+33 
 	`mem£t
 (
 »q
@@ -127,7 +135,7 @@ cÚfig_šfo
 »q_šfo
 ));
 
-32 
+35 
 	`cÚfig_»ad
 (
 cÚfig
@@ -135,13 +143,13 @@ cÚfig
 cÚfigName
 );
 
-33 
+36 
 	`´štf
 ("¡¬tšg w¬m u°w™h cÚfig %s----\n",
 cÚfigName
 );
 
-34 
+37 
 	`Œaû_»ad
 (
 cÚfig
@@ -149,7 +157,7 @@ cÚfig
 Œaû
 );
 
-35 
+38 
 	`´štf
 ("¡¬tšg„•Ïy IO¿û %s----\n",
 cÚfig
@@ -157,23 +165,55 @@ cÚfig
 ŒaûFžeName
 );
 
-42 
+44 ià(
+DEBUG
+ == 1) {
+
+45 
 	`´štf
-("cÚfig->deviû=%s\n",
+("Devices:\n");
+
+46 
+j
+ < 
+cÚfig
+->
+diskNum
+) {
+
+47 
+	`´štf
+("%s\n", 
 cÚfig
 ->
 deviû
-);
+[
+j
+]);
 
-44 
+48 
+j
+++;
+
+52 
+j
+ = 0; j < 
+cÚfig
+->
+diskNum
+; j++) {
+
+53 
 fd
- = 
+[
+j
+] = 
 	`Ý’
 (
 cÚfig
 ->
 deviû
-, 
+[j], 
 O_DIRECT
  | 
 O_SYNC
@@ -181,11 +221,13 @@ O_SYNC
 O_RDWR
 );
 
-45 if(
+54 ià(
 fd
- < 0)
+[
+j
+] < 0) {
 
-47 
+55 
 	`årštf
 (
 ¡d”r
@@ -193,77 +235,81 @@ fd
 ”ºo
 );
 
-48 
+56 
 	`´štf
 ("Cannot open\n");
 
-49 
+57 
 	`ex™
 (-1);
 
-52 ià(
-	`posix_mem®ign
-((**)&
-buf
-, 
-MEM_ALIGN
-, 
-LARGEST_REQUEST_SIZE
- * 
-BYTE_PER_BLOCK
-))
-
-54 
-	`årštf
-(
-¡d”r
-, "Error‡llocating buffer\n");
-
-57 
-i
-=0;i<
-LARGEST_REQUEST_SIZE
-*
-BYTE_PER_BLOCK
-;i++)
-
-60 
-buf
-[
-i
-]=()(
-	`¿nd
-()%26+65);
-
-63 
+74 
 	`š™_aio
 ();
 
-65 
+76 
 š™Time
 =
 	`time_now
 ();
 
-66 
+77 
 execTime
 =0;
 
-68 
+79 
 Œaû
 ->
 äÚt
 )
 
-70 
+81 
 	`queue_pÝ
 (
 Œaû
-,
+, 
 »q
 );
 
-71 
+82 
+	`¥l™_»q
+(
+fd
+, 
+»q
+, 
+cÚfig
+->
+diskNum
+, 
+Œaû
+, 
+š™Time
+);
+
+83 
+	`ä“
+(
+»q
+);
+
+84 
+j
+ = 0; j < 
+cÚfig
+->
+diskNum
+; j++)
+
+85 
+	`þo£
+(
+fd
+[
+j
+]);
+
+87 
 »qTime
 =
 »q
@@ -271,7 +317,7 @@ execTime
 time
 ;
 
-72 
+88 
 nowTime
 =
 	`time_–­£d
@@ -279,11 +325,11 @@ nowTime
 š™Time
 );
 
-73 #ifdeà 
+89 #ifdeà 
 __B_Zhªg__
 
 
-74 if(
+90 if(
 nowTime
 -
 execTime
@@ -293,7 +339,7 @@ cÚfig
 exec
  * 1000000)
 
-76 
+92 
 	`¦“p
 (
 cÚfig
@@ -301,7 +347,7 @@ cÚfig
 idË
 );
 
-77 
+93 
 execTime
 =
 	`time_–­£d
@@ -309,7 +355,7 @@ execTime
 š™Time
 );
 
-81 
+97 
 nowTime
 =
 	`time_–­£d
@@ -317,13 +363,13 @@ nowTime
 š™Time
 );
 
-82 
+98 
 nowTime
  < 
 »qTime
 )
 
-85 
+101 
 nowTime
 =
 	`time_–­£d
@@ -331,7 +377,7 @@ nowTime
 š™Time
 );
 
-87 
+103 
 »q
 ->
 wa™Time
@@ -341,11 +387,11 @@ nowTime
 »qTime
 ;
 
-90 
+106 
 	`subm™_aio
 (
 fd
-,
+[0],
 buf
 ,
 »q
@@ -355,11 +401,11 @@ buf
 š™Time
 );
 
-92 
+109 
 i
 =0;
 
-93 
+110 
 Œaû
 ->
 šNum
@@ -367,7 +413,7 @@ i
 outNum
 )
 
-100 
+112 
 	`´štf
 ("Œaû->šNum=%d\n",
 Œaû
@@ -375,7 +421,7 @@ outNum
 šNum
 );
 
-101 
+113 
 	`´štf
 ("Œaû->outNum=%d\n",
 Œaû
@@ -383,27 +429,27 @@ outNum
 outNum
 );
 
-102 
+114 
 	`´štf
 ("begin sleepping 1 second------\n");
 
-103 
+115 
 	`¦“p
 (1);
 
-106 
+118 
 	`ä“
 (
 buf
 );
 
-107 
+119 
 	`ä“
 (
 cÚfig
 );
 
-108 
+120 
 	`fþo£
 (
 Œaû
@@ -411,23 +457,23 @@ cÚfig
 logFže
 );
 
-109 
+121 
 	`ä“
 (
 Œaû
 );
 
-110 
+122 
 	`ä“
 (
 »q
 );
 
-111 
+123 
 	}
 }
 
-113 
+125 
 	$hªdË_aio
 (
 sigv®_t
@@ -435,27 +481,39 @@ sigv®_t
 sigv®
 )
 
-115 
+127 
 aiocb_šfo
  *
 cb
 ;
 
-116 
+128 
 Ï‹ncy_subm™
 ,
 Ï‹ncy_issue
 ;
 
-117 
+129 
 ”rÜ
 ;
 
-118 
+130 
 couÁ
 ;
 
-120 
+131 
+»q_šfo
+ *
+·»Á
+;
+
+132 
+»q_šfo
+ *
+sub_»q
+;
+
+134 
 cb
 =(
 aiocb_šfo
@@ -465,7 +523,7 @@ sigv®
 siv®_±r
 ;
 
-121 
+135 
 Ï‹ncy_subm™
 =
 	`time_–­£d
@@ -475,7 +533,7 @@ cb
 begšTime_subm™
 );
 
-122 
+136 
 Ï‹ncy_issue
 =
 	`time_–­£d
@@ -485,7 +543,37 @@ cb
 begšTime_issue
 );
 
-125 
+139 
+sub_»q
+ = 
+cb
+->
+»q
+;
+
+140 
+·»Á
+ = 
+sub_»q
+->parent;
+
+141 
+sub_»q
+->
+¦©
+ = 
+Ï‹ncy_subm™
+;
+
+142 
+sub_»q
+->
+Ït
+ = 
+Ï‹ncy_issue
+;
+
+144 
 ”rÜ
 =
 	`aio_”rÜ
@@ -495,17 +583,17 @@ cb
 aiocb
 );
 
-126 if(
+145 if(
 ”rÜ
 )
 
-128 if(
+147 if(
 ”rÜ
  !ð
 ECANCELED
 )
 
-130 
+149 
 	`årštf
 (
 ¡d”r
@@ -513,11 +601,11 @@ ECANCELED
 ”rÜ
 );
 
-134 
+153 
 	`´štf
 ("---ECANCELEDƒrror\n");
 
-138 
+157 
 couÁ
 =
 	`aio_»tuº
@@ -527,7 +615,7 @@ cb
 aiocb
 );
 
-139 if(
+158 if(
 couÁ
 <()
 cb
@@ -537,13 +625,13 @@ aiocb
 aio_nby‹s
 )
 
-141 
+160 
 	`årštf
 (
 ¡d”r
 , "Warning I/O completed:%db but„equested:%ldb\n",
 
-142 
+161 
 couÁ
 ,
 cb
@@ -553,7 +641,47 @@ aiocb
 aio_nby‹s
 );
 
-144 
+164 ià(
+·»Á
+) {
+
+165 ià(
+·»Á
+->
+Ït
+ < 
+sub_»q
+->lat) {
+
+166 
+·»Á
+->
+Ït
+ = 
+sub_»q
+->lat;
+
+167 
+·»Á
+->
+¦©
+ = 
+sub_»q
+->slat;
+
+170 
+·»Á
+->
+wa™Chžd
+ -=1;
+
+171 ià(
+·»Á
+->
+wa™Chžd
+ == 0) {
+
+172 
 	`årštf
 (
 cb
@@ -561,9 +689,9 @@ cb
 Œaû
 ->
 logFže
-,"%-16lf %-12lld %-12lld %-5d %-2d %-2lld %lld \n",
+,
 
-145 
+174 
 cb
 ->
 »q
@@ -575,7 +703,13 @@ wa™Time
 lba
 ,cb->»q->
 size
-,cb->»q->
+,
+
+175 
+cb
+->
+»q
+->
 ty³
 ,
 Ï‹ncy_subm™
@@ -583,7 +717,7 @@ ty³
 Ï‹ncy_issue
 );
 
-146 
+176 
 	`fæush
 (
 cb
@@ -593,7 +727,7 @@ cb
 logFže
 );
 
-148 
+177 
 cb
 ->
 Œaû
@@ -601,15 +735,15 @@ cb
 outNum
 ++;
 
-150 if(
+178 ià(
 cb
 ->
 Œaû
 ->
 outNum
-%10000==0)
+ % 10000 == 0) {
 
-152 
+179 
 	`´štf
 ("---ha »¶ayed %d\n",
 cb
@@ -619,7 +753,21 @@ cb
 outNum
 );
 
-155 
+184 
+	`ä“
+(
+sub_»q
+->
+buf
+);
+
+185 
+	`ä“
+(
+sub_»q
+);
+
+186 
 	`ä“
 (
 cb
@@ -627,17 +775,17 @@ cb
 aiocb
 );
 
-156 
+187 
 	`ä“
 (
 cb
 );
 
-157 
+188 
 	}
 }
 
-159 
+190 
 	$subm™_aio
 (
 fd
@@ -655,21 +803,21 @@ buf
 š™Time
 )
 
-161 
+192 
 aiocb_šfo
  *
 cb
 ;
 
-162 *
+193 *
 buf_Ãw
 ;
 
-163 
+194 
 ”rÜ
 =0;
 
-166 
+197 
 cb
 =(
 aiocb_šfo
@@ -677,7 +825,7 @@ aiocb_šfo
 	`m®loc
 ((aiocb_info));
 
-167 
+198 
 	`mem£t
 (
 cb
@@ -685,7 +833,7 @@ cb
 aiocb_šfo
 ));
 
-168 
+199 
 cb
 ->
 aiocb
@@ -693,7 +841,7 @@ aiocb
 	`m®loc
 ((aiocb));
 
-169 
+200 
 	`mem£t
 (
 cb
@@ -701,7 +849,7 @@ cb
 aiocb
 ,0,(aiocb));
 
-170 
+201 
 cb
 ->
 »q
@@ -711,7 +859,7 @@ cb
 	`m®loc
 ((req_info));
 
-171 
+202 
 	`mem£t
 (
 cb
@@ -721,7 +869,7 @@ cb
 »q_šfo
 ));
 
-173 
+204 
 cb
 ->
 aiocb
@@ -731,7 +879,7 @@ aio_fždes
 fd
 ;
 
-174 
+205 
 cb
 ->
 aiocb
@@ -743,7 +891,7 @@ aio_nby‹s
 size
 ;
 
-175 
+206 
 cb
 ->
 aiocb
@@ -755,7 +903,7 @@ aio_off£t
 lba
 ;
 
-177 
+208 
 cb
 ->
 aiocb
@@ -767,7 +915,7 @@ sigev_nÙify
 SIGEV_THREAD
 ;
 
-178 
+209 
 cb
 ->
 aiocb
@@ -779,7 +927,7 @@ sigev_nÙify_funùiÚ
 hªdË_aio
 ;
 
-179 
+210 
 cb
 ->
 aiocb
@@ -791,7 +939,7 @@ sigev_nÙify_©Œibu‹s
 NULL
 ;
 
-180 
+211 
 cb
 ->
 aiocb
@@ -803,11 +951,11 @@ sigev_v®ue
 siv®_±r
  = cb;
 
-184 if(
+215 if(
 USE_GLOBAL_BUFF
 !=1)
 
-186 ià(
+217 ià(
 	`posix_mem®ign
 ((**)&
 buf_Ãw
@@ -819,13 +967,13 @@ MEM_ALIGN
 size
 ))
 
-188 
+219 
 	`årštf
 (
 ¡d”r
 , "Error‡llocating buffer\n");
 
-190 
+221 
 cb
 ->
 aiocb
@@ -835,7 +983,7 @@ aio_buf
 buf_Ãw
 ;
 
-194 
+225 
 cb
 ->
 aiocb
@@ -845,47 +993,13 @@ aio_buf
 buf
 ;
 
-198 
+228 
 cb
 ->
 »q
-->
-time
-=req->time;
+=req;
 
-199 
-cb
-->
-»q
-->
-lba
-=req->lba;
-
-200 
-cb
-->
-»q
-->
-size
-=req->size;
-
-201 
-cb
-->
-»q
-->
-ty³
-=req->type;
-
-202 
-cb
-->
-»q
-->
-wa™Time
-=req->waitTime;
-
-205 
+236 
 cb
 ->
 begšTime_subm™
@@ -893,7 +1007,7 @@ begšTime_subm™
 	`time_now
 ();
 
-206 
+237 
 cb
 ->
 begšTime_issue
@@ -905,19 +1019,19 @@ time
 š™Time
 ;
 
-208 
+240 
 cb
 ->
 Œaû
 =trace;
 
-210 if(
+245 if(
 »q
 ->
 ty³
 ==1)
 
-212 
+247 
 ”rÜ
 =
 	`aio_wr™e
@@ -927,7 +1041,7 @@ cb
 aiocb
 );
 
-216 
+251 
 ”rÜ
 =
 	`aio_»ad
@@ -937,35 +1051,35 @@ cb
 aiocb
 );
 
-219 if(
+254 if(
 ”rÜ
 )
 
-221 
+256 
 	`årštf
 (
 ¡d”r
 , "Error…erforming i/o");
 
-222 
+257 
 	`ex™
 (-1);
 
-224 
+259 
 	}
 }
 
-226 
+261 
 	$š™_aio
 ()
 
-228 
+263 
 aioš™
  
 aioP¬am
 ={0};
 
-231 
+266 
 aioP¬am
 .
 aio_th»ads
@@ -973,29 +1087,29 @@ aio_th»ads
 AIO_THREAD_POOL_SIZE
 ;
 
-232 
+267 
 aioP¬am
 .
 aio_num
  = 2048;
 
-233 
+268 
 aioP¬am
 .
 aio_idË_time
  = 1;
 
-234 
+269 
 	`aio_š™
 (&
 aioP¬am
 );
 
-235 
+270 
 	}
 }
 
-237 
+272 
 	$cÚfig_»ad
 (
 cÚfig_šfo
@@ -1005,29 +1119,33 @@ cÚfig
 fž’ame
 )
 
-239 
+274 
 Çme
 ,
 v®ue
 ;
 
-240 
+275 
 lše
 [
 BUFSIZE
 ];
 
-241 *
+276 *
 ±r
 ;
 
-242 
+277 
 FILE
  *
 cÚfigFže
 ;
 
-244 
+278 
+diskid
+;
+
+280 
 cÚfigFže
 =
 	`fÝ’
@@ -1035,21 +1153,21 @@ cÚfigFže
 fž’ame
 ,"r");
 
-245 if(
+281 if(
 cÚfigFže
-==
+ =ð
 NULL
 )
 
-247 
+283 
 	`´štf
 ("error: opening config file\n");
 
-248 
+284 
 	`ex™
 (-1);
 
-251 
+287 
 	`mem£t
 (
 lše
@@ -1057,7 +1175,11 @@ lše
 BUFSIZE
 );
 
-252 
+288 
+diskid
+ = 0;
+
+289 
 	`fg‘s
 (
 lše
@@ -1065,11 +1187,11 @@ lše
 cÚfigFže
 ))
 
-254 if(
+291 if(
 lše
-[0]=='#'||line[0]==' ')
+[0] == '#'||line[0] == ' ')
 
-258 
+295 
 ±r
 =
 	`¡rchr
@@ -1077,11 +1199,11 @@ lše
 lše
 ,'=');
 
-259 if(!
+296 if(!
 ±r
 )
 
-263 
+300 
 Çme
 =
 ±r
@@ -1089,35 +1211,37 @@ lše
 lše
 ;
 
-264 
+301 
 v®ue
 =
 Çme
 +1;
 
-265 
+302 
 lše
 [
 Çme
 -1]==' ')
 
-267 
+304 
 Çme
 --;
 
-269 
+306 
 lše
 [
 Çme
 ]=0;
 
-271 if(
+308 if(
 	`¡rcmp
 (
 lše
-,"device")==0)
+,"deviû")==0 && 
+diskid
+ < 10)
 
-273 
+310 
 	`ssÿnf
 (
 lše
@@ -1127,15 +1251,17 @@ v®ue
 cÚfig
 ->
 deviû
-);
+[
+diskid
+++]);
 
-275 if(
+312 if(
 	`¡rcmp
 (
 lše
 ,"trace")==0)
 
-277 
+314 
 	`ssÿnf
 (
 lše
@@ -1147,13 +1273,13 @@ cÚfig
 ŒaûFžeName
 );
 
-279 if(
+316 if(
 	`¡rcmp
 (
 lše
 ,"log")==0)
 
-281 
+318 
 	`ssÿnf
 (
 lše
@@ -1165,13 +1291,13 @@ cÚfig
 logFžeName
 );
 
-283 if(
+320 if(
 	`¡rcmp
 (
 lše
 ,"exectime")==0)
 
-285 
+322 
 	`ssÿnf
 (
 lše
@@ -1183,13 +1309,13 @@ cÚfig
 exec
 );
 
-287 if(
+324 if(
 	`¡rcmp
 (
 lše
 ,"idletime")==0)
 
-289 
+326 
 	`ssÿnf
 (
 lše
@@ -1201,7 +1327,7 @@ cÚfig
 idË
 );
 
-291 
+328 
 	`mem£t
 (
 lše
@@ -1209,17 +1335,25 @@ lše
 BUFSIZE
 );
 
-293 
+330 
+cÚfig
+->
+diskNum
+ = 
+diskid
+;
+
+331 
 	`fþo£
 (
 cÚfigFže
 );
 
-294 
+332 
 	}
 }
 
-296 
+334 
 	$Œaû_»ad
 (
 cÚfig_šfo
@@ -1231,25 +1365,25 @@ cÚfig
 Œaû
 )
 
-298 
+336 
 FILE
  *
 ŒaûFže
 ;
 
-299 
+337 
 lše
 [
 BUFSIZE
 ];
 
-300 
+338 
 »q_šfo
 * 
 »q
 ;
 
-302 
+340 
 ŒaûFže
 =
 	`fÝ’
@@ -1259,7 +1393,7 @@ cÚfig
 ŒaûFžeName
 ,"r");
 
-303 
+341 
 »q
 =(
 »q_šfo
@@ -1267,39 +1401,39 @@ cÚfig
 	`m®loc
 ((req_info));
 
-304 if(
+342 if(
 ŒaûFže
 ==
 NULL
 )
 
-306 
+344 
 	`´štf
 ("error: openingrace file\n");
 
-307 
+345 
 	`ex™
 (-1);
 
-310 
+348 
 Œaû
 ->
 šNum
 =0;
 
-311 
+349 
 Œaû
 ->
 outNum
 =0;
 
-312 
+350 
 Œaû
 ->
 Ï‹ncySum
 =0;
 
-313 
+351 
 Œaû
 ->
 logFže
@@ -1311,7 +1445,7 @@ cÚfig
 logFžeName
 ,"w");
 
-315 
+353 
 	`fg‘s
 (
 lše
@@ -1319,19 +1453,19 @@ lše
 ŒaûFže
 ))
 
-317 if(
+355 if(
 	`¡¾’
 (
 lše
 )==2)
 
-321 
+359 
 Œaû
 ->
 šNum
 ++;
 
-323 
+361 
 	`ssÿnf
 (
 lše
@@ -1347,13 +1481,13 @@ size
 ty³
 );
 
-325 
+363 
 »q
 ->
 time
 =req->time*1000;
 
-326 
+364 
 »q
 ->
 size
@@ -1361,7 +1495,7 @@ size
 BYTE_PER_BLOCK
 ;
 
-327 
+365 
 »q
 ->
 lba
@@ -1369,13 +1503,13 @@ lba
 BYTE_PER_BLOCK
 ;
 
-328 
+366 
 »q
 ->
 wa™Time
 =0;
 
-329 
+367 
 	`queue_push
 (
 Œaû
@@ -1383,27 +1517,27 @@ wa™Time
 »q
 );
 
-331 
+369 
 	`fþo£
 (
 ŒaûFže
 );
 
-332 
+370 
 	}
 }
 
-334 
+372 
 	$time_now
 ()
 
-336 
+374 
 timev®
  
 now
 ;
 
-337 
+375 
 	`g‘timeofday
 (&
 now
@@ -1411,7 +1545,7 @@ now
 NULL
 );
 
-338  1000000*
+376  1000000*
 now
 .
 tv_£c
@@ -1419,27 +1553,27 @@ tv_£c
 tv_u£c
 ;
 
-339 
+377 
 	}
 }
 
-341 
+379 
 	$time_–­£d
 (
 begš
 )
 
-343  
+381  
 	`time_now
 ()-
 begš
 ;
 
-344 
+382 
 	}
 }
 
-346 
+384 
 	$queue_push
 (
 Œaû_šfo
@@ -1451,13 +1585,13 @@ begš
 »q
 )
 
-348 
+386 
 »q_šfo
 * 
 ‹mp
 ;
 
-349 
+387 
 ‹mp
  = (
 »q_šfo
@@ -1465,7 +1599,7 @@ begš
 	`m®loc
 ((req_info));
 
-350 
+388 
 ‹mp
 ->
 time
@@ -1473,7 +1607,7 @@ time
 »q
 ->time;
 
-351 
+389 
 ‹mp
 ->
 lba
@@ -1481,7 +1615,7 @@ lba
 »q
 ->lba;
 
-352 
+390 
 ‹mp
 ->
 size
@@ -1489,7 +1623,7 @@ size
 »q
 ->size;
 
-353 
+391 
 ‹mp
 ->
 ty³
@@ -1497,7 +1631,7 @@ ty³
 »q
 ->type;
 
-354 
+392 
 ‹mp
 ->
 wa™Time
@@ -1505,7 +1639,7 @@ wa™Time
 »q
 ->waitTime;
 
-355 
+393 
 ‹mp
 ->
 Ãxt
@@ -1513,7 +1647,21 @@ wa™Time
 NULL
 ;
 
-356 if(
+394 
+‹mp
+->
+buf
+ = 
+NULL
+;
+
+395 
+‹mp
+->
+wa™Chžd
+ = 0;
+
+396 if(
 Œaû
 ->
 äÚt
@@ -1523,7 +1671,7 @@ NULL
 »¬
  == NULL)
 
-358 
+398 
 Œaû
 ->
 äÚt
@@ -1533,7 +1681,7 @@ NULL
 ‹mp
 ;
 
-362 
+402 
 Œaû
 ->
 »¬
@@ -1543,7 +1691,7 @@ NULL
 ‹mp
 ;
 
-363 
+403 
 Œaû
 ->
 »¬
@@ -1551,23 +1699,515 @@ NULL
 ‹mp
 ;
 
-365 
+405 
 	}
 }
 
-367 
+407 
+	$¥l™_»q
+(*
+fd
+, 
+»q_šfo
+ * 
+·»Á
+, 
+diskNum
+, 
+Œaû_šfo
+ *
+Œaû
+, 
+š™Time
+)
+
+409 
+chunk_size
+ = 
+CHUNK_SIZE
+ * 1024;
+
+410 
+¡re_size
+ = 
+chunk_size
+ * (
+diskNum
+ - 1);
+
+411 
+Ën
+;
+
+412 
+»q_’d
+ = 
+·»Á
+->
+lba
+ +…¬’t->
+size
+;
+
+413 
+¡re_id
+;
+
+414 
+d©a_id
+;
+
+415 
+i
+;
+
+416 
+chunk_off£t
+;
+
+417 
+·r™y_id
+;
+
+418 
+disk_id
+;
+
+419 
+lba
+;
+
+420 
+¦iû
+;
+
+421 
+disk_Ý
+[10] = {0};
+
+423 
+¡re_id
+ = 0;
+
+424 
+·r™y_id
+ = 0;
+
+425 
+	`´štf
+("########»que¡†b¨ð%Îd, sizð%d\n", 
+·»Á
+->
+lba
+,…¬’t->
+size
+);
+
+426 
+	`´štf
+("Disk‚um = %d\n", 
+diskNum
+);
+
+427 
+¦iû
+ = 
+·»Á
+->
+lba
+; ; sliû +ð
+chunk_size
+) {
+
+428 ià(
+¦iû
+ + 
+chunk_size
+ <ð
+»q_’d
+)
+
+429 
+Ën
+ = 
+chunk_size
+;
+
+430 ià(
+¦iû
+ + 
+chunk_size
+ > 
+»q_’d
+)
+
+431 
+Ën
+ = 
+»q_’d
+ - 
+¦iû
+;
+
+433 
+	`´štf
+("ËÀð%d\n", 
+Ën
+);
+
+435 ià(
+Ën
+ <= 0)
+
+438 
+d©a_id
+ = (
+¦iû
+ % 
+¡re_size
+è/ 
+chunk_size
+;
+
+439 
+chunk_off£t
+ = (
+¦iû
+ % 
+¡re_size
+è% 
+chunk_size
+;
+
+441 ià(
+¡re_id
+ !ð
+¦iû
+ / 
+¡re_size
+) {
+
+442 
+¡re_id
+ = 
+¦iû
+ / 
+¡re_size
+;
+
+443 
+·r™y_id
+ = 
+¡re_id
+ % 
+diskNum
+;
+
+444 
+lba
+ = 
+·»Á
+->lb¨/ (
+diskNum
+ -1è+ 
+chunk_off£t
+;
+
+445 
+	`´štf
+("¡rid = %ld\n", 
+¡re_id
+);
+
+446 
+	`´štf
+("·r™y id = %d,†b¨ð%Îd\n", 
+·r™y_id
+, 
+lba
+);
+
+447 
+»q_šfo
+ *
+·r™y_»q
+ = (»q_šfØ*)
+	`m®loc
+((req_info));
+
+448 
+·r™y_»q
+->
+time
+ = 
+·»Á
+->time;
+
+449 
+·r™y_»q
+->
+lba
+ =†ba;
+
+450 
+·r™y_»q
+->
+size
+ = 
+Ën
+;
+
+451 
+·r™y_»q
+->
+ty³
+ = 
+·»Á
+->type;
+
+452 
+·r™y_»q
+->
+wa™Time
+ = 
+·»Á
+->waitTime;
+
+453 
+·r™y_»q
+->
+·»Á
+ =…arent;
+
+454 
+·r™y_»q
+->
+wa™Chžd
+ = 0;
+
+455 ià(
+	`posix_mem®ign
+((**è&(
+·r™y_»q
+->
+buf
+), 
+MEM_ALIGN
+, 
+Ën
+)) {
+
+456 
+	`årštf
+(
+¡d”r
+, "allocat sub„equest buff failed!\n");
+
+457 
+	`ex™
+(-1);
+
+460 
+i
+ = 0; i < 
+·r™y_»q
+->
+size
+; i++) {
+
+462 
+·r™y_»q
+->
+buf
+[
+i
+]=()(
+	`¿nd
+()%26+65);
+
+465 
+	`subm™_aio
+(
+fd
+[
+·r™y_id
+], 
+·r™y_»q
+->
+buf
+,…¬™y_»q, 
+Œaû
+, 
+š™Time
+);
+
+469 ià(
+d©a_id
+ < 
+·r™y_id
+)
+
+470 
+disk_id
+ = 
+d©a_id
+;
+
+472 
+disk_id
+ = 
+d©a_id
+ + 1;
+
+474 
+»q_šfo
+ *
+sub_»q
+ = (»q_šfØ*)
+	`m®loc
+((req_info));
+
+475 ià(
+sub_»q
+ =ð
+NULL
+) {
+
+476 
+	`´štf
+("allocate sub„equest failed!\n");
+
+477 
+	`ex™
+(-1);
+
+480 
+sub_»q
+->
+time
+ = 
+·»Á
+->time;
+
+481 
+sub_»q
+->
+lba
+ =†ba;
+
+482 
+sub_»q
+->
+size
+ = 
+Ën
+;
+
+483 
+sub_»q
+->
+ty³
+ = 
+·»Á
+->type;
+
+484 
+sub_»q
+->
+wa™Time
+ = 
+·»Á
+->waitTime;
+
+485 
+sub_»q
+->
+·»Á
+ =…arent;
+
+486 
+sub_»q
+->
+wa™Chžd
+ = 0;
+
+487 
+sub_»q
+->
+Ãxt
+ = 
+NULL
+;
+
+489 ià(
+	`posix_mem®ign
+((**è&(
+sub_»q
+->
+buf
+), 
+MEM_ALIGN
+, 
+Ën
+)) {
+
+490 
+	`årštf
+(
+¡d”r
+, "allocat sub„equest buff failed!\n");
+
+491 
+	`ex™
+(-1);
+
+494 
+	`subm™_aio
+(
+fd
+[
+disk_id
+], 
+sub_»q
+->
+buf
+, sub_»q, 
+Œaû
+, 
+š™Time
+);
+
+496 
+·»Á
+->
+wa™Chžd
+ +=1;
+
+498 
+	`´štf
+("disk id = %d,†b¨ð%Îd\n", 
+disk_id
+, 
+lba
+);
+
+500 
+	}
+}
+
+502 
 	$queue_pÝ
 (
 Œaû_šfo
  *
 Œaû
-,
+, 
 »q_šfo
  *
 »q
 )
 
-369 
+504 
 »q_šfo
 * 
 ‹mp
@@ -1577,7 +2217,7 @@ NULL
 äÚt
 ;
 
-370 if(
+505 if(
 Œaû
 ->
 äÚt
@@ -1585,11 +2225,11 @@ NULL
 NULL
 )
 
-372 
+507 
 	`´štf
 ("Queue is Empty\n");
 
-375 
+510 
 »q
 ->
 time
@@ -1599,7 +2239,7 @@ time
 äÚt
 ->time;
 
-376 
+511 
 »q
 ->
 lba
@@ -1609,7 +2249,7 @@ lba
 äÚt
 ->lba;
 
-377 
+512 
 »q
 ->
 size
@@ -1619,7 +2259,7 @@ size
 äÚt
 ->size;
 
-378 
+513 
 »q
 ->
 ty³
@@ -1629,7 +2269,7 @@ ty³
 äÚt
 ->type;
 
-379 
+514 
 »q
 ->
 wa™Time
@@ -1639,7 +2279,15 @@ wa™Time
 äÚt
 ->waitTime;
 
-380 if(
+515 
+»q
+->
+·»Á
+ = 
+NULL
+;
+
+516 if(
 Œaû
 ->
 äÚt
@@ -1647,7 +2295,7 @@ wa™Time
 »¬
 )
 
-382 
+518 
 Œaû
 ->
 äÚt
@@ -1657,7 +2305,7 @@ wa™Time
 NULL
 ;
 
-386 
+522 
 Œaû
 ->
 äÚt
@@ -1665,17 +2313,17 @@ NULL
 Ãxt
 ;
 
-388 
+524 
 	`ä“
 (
 ‹mp
 );
 
-389 
+525 
 	}
 }
 
-391 
+527 
 	$queue_´št
 (
 Œaû_šfo
@@ -1683,7 +2331,7 @@ NULL
 Œaû
 )
 
-393 
+529 
 »q_šfo
 * 
 ‹mp
@@ -1693,11 +2341,11 @@ NULL
 äÚt
 ;
 
-394 
+530 
 ‹mp
 )
 
-396 
+532 
 	`´štf
 ("%là",
 ‹mp
@@ -1705,7 +2353,7 @@ NULL
 time
 );
 
-397 
+533 
 	`´štf
 ("%Îd ",
 ‹mp
@@ -1713,7 +2361,7 @@ time
 lba
 );
 
-398 
+534 
 	`´štf
 ("%d ",
 ‹mp
@@ -1721,7 +2369,7 @@ lba
 size
 );
 
-399 
+535 
 	`´štf
 ("%d\n",
 ‹mp
@@ -1729,7 +2377,7 @@ size
 ty³
 );
 
-400 
+536 
 	`´štf
 ("%Îd\n",
 ‹mp
@@ -1737,13 +2385,13 @@ ty³
 wa™Time
 );
 
-401 
+537 
 ‹mp
  =emp->
 Ãxt
 ;
 
-403 
+539 
 	}
 }
 
@@ -1873,7 +2521,7 @@ _REPLAY_H
 
 34 
 	mdeviû
-[64];
+[10][64];
 
 35 
 	mŒaûFžeName
@@ -1891,107 +2539,133 @@ _REPLAY_H
 	midË
 ;
 
-41 
+39 
+	mdiskNum
+;
+
+42 
 	s»q_šfo
 {
 
-42 
+43 
 	mtime
 ;
 
-43 
+44 
 	mlba
 ;
 
-44 
+45 
 	msize
 ;
 
-45 
+46 
 	mty³
 ;
 
-46 
+47 
 	mwa™Time
 ;
 
-47 
+48 
 »q_šfo
  *
 	mÃxt
 ;
 
-50 
-	sŒaû_šfo
-{
-
-51 
-	mšNum
+49 
+»q_šfo
+ *
+	m·»Á
 ;
 
-52 
-	moutNum
+50 
+	mwa™Chžd
+;
+
+51 *
+	mbuf
+;
+
+52 
+	m¦©
 ;
 
 53 
+	mÏt
+;
+
+56 
+	sŒaû_šfo
+{
+
+57 
+	mšNum
+;
+
+58 
+	moutNum
+;
+
+59 
 	mÏ‹ncySum
 ;
 
-54 
+60 
 FILE
  *
 	mlogFže
 ;
 
-56 
+62 
 »q_šfo
  *
 	mäÚt
 ;
 
-57 
+63 
 »q_šfo
  *
 	m»¬
 ;
 
-60 
+66 
 	saiocb_šfo
 {
 
-61 
+67 
 aiocb
 * 
 	maiocb
 ;
 
-71 
+77 
 »q_šfo
 * 
 	m»q
 ;
 
-72 
+78 
 	mbegšTime_subm™
 ;
 
-73 
+79 
 	mbegšTime_issue
 ;
 
-74 
+80 
 Œaû_šfo
  *
 	mŒaû
 ;
 
-78 
+84 
 »¶ay
 (*
 cÚfigName
 );
 
-79 
+85 
 cÚfig_»ad
 (
 cÚfig_šfo
@@ -2001,7 +2675,7 @@ cÚfig
 fž’ame
 );
 
-80 
+86 
 Œaû_»ad
 (
 cÚfig_šfo
@@ -2013,17 +2687,17 @@ cÚfig
 Œaû
 );
 
-81 
+87 
 time_now
 ();
 
-82 
+88 
 time_–­£d
 (
 begš
 );
 
-83 
+89 
 hªdË_aio
 (
 sigv®_t
@@ -2031,7 +2705,7 @@ sigv®_t
 sigv®
 );
 
-84 
+90 
 subm™_aio
 (
 fd
@@ -2049,11 +2723,29 @@ buf
 š™Time
 );
 
-85 
+91 
 š™_aio
 ();
 
-88 
+92 
+¥l™_»q
+(*
+fd
+, 
+»q_šfo
+ * 
+·»Á
+, 
+diskNum
+, 
+Œaû_šfo
+ *
+Œaû
+, 
+š™Time
+);
+
+95 
 queue_push
 (
 Œaû_šfo
@@ -2065,7 +2757,7 @@ queue_push
 »q
 );
 
-89 
+96 
 queue_pÝ
 (
 Œaû_šfo
@@ -2077,7 +2769,7 @@ queue_pÝ
 »q
 );
 
-90 
+97 
 queue_´št
 (
 Œaû_šfo

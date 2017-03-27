@@ -2,7 +2,6 @@
 
 //#define __B_Zhang__
 #define DEBUG 1
-#define CHUNK_SIZE 512
 
 
 void main(int argc, char *argv[])
@@ -43,7 +42,8 @@ void replay(char *configName)
 	//printf("trace->latencySum=%lld\n",trace->latencySum);
         if (DEBUG == 1) {
                 printf("Devices:\n");
-                while (j < 10) {
+                j=0;
+                while (j < config->diskNum) {
                         printf("%s\n", config->device[j]);
                         j++;
                 }
@@ -58,7 +58,6 @@ void replay(char *configName)
                 }
         }
 	
-
 	if (posix_memalign((void**)&buf, MEM_ALIGN, LARGEST_REQUEST_SIZE * BYTE_PER_BLOCK))
 	{
 		fprintf(stderr, "Error allocating buffer\n");
@@ -78,11 +77,6 @@ void replay(char *configName)
 	while(trace->front)
 	{
 		queue_pop(trace, req);
-                split_req(req, config->diskNum);
-                free(req);
-                for (j = 0; j < config->diskNum; j++)
-                        close(fd[j]);
-                return;
 		reqTime=req->time;
 		nowTime=time_elapsed(initTime);
 #ifdef  __B_Zhang__
@@ -102,17 +96,12 @@ void replay(char *configName)
 		req->waitTime=nowTime-reqTime;
                 //printf("wait time =%lld us\n",waitTime);
 
-                submit_aio(fd[0],buf,req,trace,initTime);
+                split_req(fd, req, buf, config->diskNum, trace, initTime);
 	}
 
         i=0;
 	while(trace->inNum > trace->outNum)
 	{
-                //i++;
-                //if(i>100)
-                //{
-                //      break;
-                //}
 		printf("trace->inNum=%d\n",trace->inNum);
 		printf("trace->outNum=%d\n",trace->outNum);
 		printf("begin sleepping 1 second------\n");
@@ -132,11 +121,18 @@ static void handle_aio(sigval_t sigval)
 	unsigned long long latency_submit,latency_issue;
 	int error;
 	int count;
+        struct req_info *parent;
+        struct req_info *sub_req;
 
 	cb=(struct aiocb_info *)sigval.sival_ptr;
 	latency_submit=time_elapsed(cb->beginTime_submit);
 	latency_issue=time_elapsed(cb->beginTime_issue);
 	//cb->trace->latencySum+=latency;
+
+        sub_req = cb->req;
+        parent = sub_req->parent;
+        sub_req->slat = latency_submit;
+        sub_req->lat = latency_issue;
 
 	error=aio_error(cb->aiocb);
 	if(error)
@@ -157,19 +153,28 @@ static void handle_aio(sigval_t sigval)
 		fprintf(stderr, "Warning I/O completed:%db but requested:%ldb\n",
 			count,cb->aiocb->aio_nbytes);
 	}
-	fprintf(cb->trace->logFile,"%-16lf %-12lld %-12lld %-5d %-2d %-2lld %lld \n",
-				cb->req->time,cb->req->waitTime,cb->req->lba,cb->req->size,
-                                cb->req->type,latency_submit,latency_issue);
+        
+        if (parent) {
+                if (parent->lat < sub_req->lat) {
+                        parent->lat = sub_req->lat;
+                        parent->slat = sub_req->slat;
+                }
 
-	fflush(cb->trace->logFile);
+                parent->waitChild -= 1;
+                if (parent->waitChild == 0) {
+                        fprintf(cb->trace->logFile,
+                                        "%-16lf %-12lld %-12lld %-5d %-2d %-2lld %lld \n",
+                                        cb->req->time,cb->req->waitTime,cb->req->lba,cb->req->size,
+                                        cb->req->type,latency_submit,latency_issue);
+                        fflush(cb->trace->logFile);
+                        cb->trace->outNum++;
+                        if (cb->trace->outNum % 10000 == 0) {
+                                printf("---has replayed %d\n",cb->trace->outNum);
+                        }
+                }
+        }
 
-	cb->trace->outNum++;
-	//printf("cb->trace->outNum=%d\n",cb->trace->outNum);
-	if(cb->trace->outNum%10000==0)
-	{
-		printf("---has replayed %d\n",cb->trace->outNum);
-	}
-
+        free(sub_req);
 	free(cb->aiocb);
 	free(cb);
 }
@@ -191,6 +196,7 @@ static void submit_aio(int fd, void *buf, struct req_info *req,struct trace_info
 	cb->aiocb->aio_fildes = fd;
 	cb->aiocb->aio_nbytes = req->size;
 	cb->aiocb->aio_offset = req->lba;
+        cb->aiocb->aio_reqprio = 1;
 
 	cb->aiocb->aio_sigevent.sigev_notify = SIGEV_THREAD;
 	cb->aiocb->aio_sigevent.sigev_notify_function = handle_aio;
@@ -199,9 +205,9 @@ static void submit_aio(int fd, void *buf, struct req_info *req,struct trace_info
 
 	//error=sigaction(SIGIO,sig_act,NULL);
 	//write and read different buffer
-	if(USE_GLOBAL_BUFF!=1)
+	if(USE_GLOBAL_BUFF != 1)
 	{
-		if (posix_memalign((void**)&buf_new, MEM_ALIGN, req->size)) 
+		if (posix_memalign((void**)&buf_new, MEM_ALIGN, req->size + 1)) 
 		{
 			fprintf(stderr, "Error allocating buffer\n");
 		}
@@ -212,12 +218,12 @@ static void submit_aio(int fd, void *buf, struct req_info *req,struct trace_info
 		cb->aiocb->aio_buf = buf;
 	}
 
-	//cb->req=req;	//WTF
-	cb->req->time=req->time;
-	cb->req->lba=req->lba;
-	cb->req->size=req->size;
-	cb->req->type=req->type;
-        cb->req->waitTime=req->waitTime;
+	cb->req=req;	//WTF
+	//cb->req->time=req->time;
+	//cb->req->lba=req->lba;
+	//cb->req->size=req->size;
+	//cb->req->type=req->type;
+        //cb->req->waitTime=req->waitTime;
 
 	/********************************/
         cb->beginTime_submit=time_now();// latency from the req was submitted
@@ -225,6 +231,9 @@ static void submit_aio(int fd, void *buf, struct req_info *req,struct trace_info
         /********************************/
 	
         cb->trace=trace;
+        
+        //printf("submit_aio: dev %d, size %d, LBA %d\n", 
+        //                fd, cb->aiocb->aio_nbytes, cb->aiocb->aio_offset);
 
 	if(req->type==1)
 	{
@@ -375,6 +384,7 @@ void queue_push(struct trace_info *trace,struct req_info *req)
 	temp->type = req->type;
         temp->waitTime=req->waitTime;
 	temp->next = NULL;
+        temp->waitChild = 0;
 	if(trace->front == NULL && trace->rear == NULL)
 	{
 		trace->front = trace->rear = temp;
@@ -386,7 +396,7 @@ void queue_push(struct trace_info *trace,struct req_info *req)
 	}
 }
 
-void split_req(struct req_info * parent, int diskNum)
+void split_req(int *fd, struct req_info * parent, char * buf, int diskNum, struct trace_info *trace, long long initTime)
 {
         unsigned int chunk_size = CHUNK_SIZE * 1024;
         unsigned int stripe_size = chunk_size * (diskNum - 1);
@@ -394,6 +404,7 @@ void split_req(struct req_info * parent, int diskNum)
         long long req_end = parent->lba + parent->size;
         unsigned long stripe_id;
         unsigned int data_id;
+        int i;
         unsigned int chunk_offset;
         unsigned int parity_id;
         unsigned int disk_id;
@@ -416,20 +427,51 @@ void split_req(struct req_info * parent, int diskNum)
                         break;
 
                 data_id = (slice % stripe_size) / chunk_size;
-                chunk_offset = (slice % stripe_size) % chunk_size;
+                chunk_offset = slice % chunk_size;
                 
                 if (stripe_id != slice / stripe_size) {
                         stripe_id = slice / stripe_size;
                         parity_id = stripe_id % diskNum;
-                        lba = parent->lba / (diskNum -1) + chunk_offset;
+                        lba = (long long) (stripe_id * stripe_size) + chunk_offset;
                         printf("stripe id = %ld\n", stripe_id);
                         printf("parity id = %d, lba = %lld\n", parity_id, lba);
+                        struct req_info *parity_req = (struct req_info *)malloc(sizeof(struct req_info));
+                        parity_req->time = parent->time;
+                        parity_req->lba = lba;
+                        parity_req->size = len;
+                        parity_req->type = parent->type;
+                        parity_req->waitTime = parent->waitTime;
+                        parity_req->parent = parent;
+                        parity_req->waitChild = 0;
+
+                        submit_aio(fd[parity_id], buf, parity_req, trace, initTime);
+
                 }
 
                 if (data_id < parity_id)
                         disk_id = data_id;
                 else
                         disk_id = data_id + 1;
+
+                struct req_info *sub_req = (struct req_info *)malloc(sizeof(struct req_info));
+                if (sub_req == NULL) {
+                        printf("allocate sub request failed!\n");
+                        exit(-1);
+                }
+
+                sub_req->time = parent->time;
+                sub_req->lba = lba;
+                sub_req->size = len;
+                sub_req->type = parent->type;
+                sub_req->waitTime = parent->waitTime;
+                sub_req->parent = parent;
+                sub_req->waitChild = 0;
+                sub_req->next = NULL;
+
+                submit_aio(fd[disk_id], buf, sub_req, trace, initTime);
+
+                parent->waitChild +=1;
+
                 printf("disk id = %d, lba = %lld\n", disk_id, lba);
         }
 }
@@ -447,6 +489,7 @@ void queue_pop(struct trace_info *trace, struct req_info *req)
 	req->size = trace->front->size;
 	req->type = trace->front->type;	
         req->waitTime=trace->front->waitTime;
+        req->parent = NULL;
 	if(trace->front == trace->rear) 
 	{
 		trace->front = trace->rear = NULL;
