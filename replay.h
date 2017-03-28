@@ -31,8 +31,9 @@
 #define BLOCK_PER_DRIVE		    (long long)8*1024*1024*1024*2	//8TB Drive capacity (blks)
 
 #define CHUNK_SIZE 512 //raid: chunk size kb
+#define MAX_DISKS 10
 
-struct config_info{
+struct config_info {
 	char device[10][64];
 	char traceFileName[64];
 	char logFileName[64];
@@ -41,7 +42,7 @@ struct config_info{
         unsigned int diskNum;
 };
 
-struct req_info{
+struct req_info {
 	double time;
 	long long lba;
 	unsigned int size;
@@ -54,7 +55,7 @@ struct req_info{
         long long lat;
 };
 
-struct trace_info{
+struct trace_info {
 	unsigned int inNum;
 	unsigned int outNum;
 	long long latencySum;
@@ -64,17 +65,16 @@ struct trace_info{
 	struct req_info *rear;
 };
 
-struct aiocb_info{
+struct subreq_stack {
+        struct req_info *sub_req;
+        struct req_info *last;
+        struct req_info *next;
+        struct req_info *head;
+        struct req_info *tail;
+}
+
+struct aiocb_info {
 	struct aiocb* aiocb;
-	///* The order of these fields is implementation-dependent */
-	//int             aio_fildes;     /* File descriptor */
-	//off_t           aio_offset;     /* File offset */
-	//volatile void  *aio_buf;        /* Location of buffer */
-	//size_t          aio_nbytes;     /* Length of transfer */
-	//int             aio_reqprio;    /* Request priority */
-	//struct sigevent aio_sigevent;   /* Notification method */
-	//int             aio_lio_opcode; /* Operation to be performed;lio_listio() only */
-	//
 	struct req_info* req;
 	long long beginTime_submit;
 	long long beginTime_issue;
@@ -90,11 +90,15 @@ long long time_elapsed(long long begin);
 static void handle_aio(sigval_t sigval);
 static void submit_aio(int fd, void *buf,struct req_info *req,struct trace_info *trace,long long initTime);
 static void init_aio();
-void split_req(int *fd, struct req_info * parent, char *buf, int diskNum, struct trace_info *trace, long long initTime);
+void split_req(int *fd, struct req_info *parent, char *buf, int diskNum, struct trace_info *trace, long long initTime);
+void preread(int *fd, struct req_info *parent, char *buf, int diskNum, struct trace_info *trace, long long initTime);
 
-//queue.c
-void queue_push(struct trace_info *trace,struct req_info *req);
-void queue_pop(struct trace_info *trace,struct req_info *req);
+//trace queue ops
+void queue_push(struct trace_info *trace, struct req_info *req);
+void queue_pop(struct trace_info *trace, struct req_info *req);
 void queue_print(struct trace_info *trace);
 
+//req stack ops
+void stack_push(struct subreq_stack *subreqs, struct req_info *req);
+void stack_pop(struct subreq_stack *subreqs, struct req_info *req);
 #endif

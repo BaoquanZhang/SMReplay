@@ -396,21 +396,28 @@ void queue_push(struct trace_info *trace,struct req_info *req)
 	}
 }
 
-void split_req(int *fd, struct req_info * parent, char * buf, int diskNum, struct trace_info *trace, long long initTime)
+void preread(int *fd, struct req_info *parent, char *buf, int diskNum, struct trace_info *trace, long long initTime)
+{
+
+}
+
+void split_req(int *fd, struct req_info *parent, char *buf, int diskNum, struct trace_info *trace, long long initTime)
 {
         unsigned int chunk_size = CHUNK_SIZE * 1024;
         unsigned int stripe_size = chunk_size * (diskNum - 1);
-        int len;
+        int i, len;
         long long req_end = parent->lba + parent->size;
         unsigned long stripe_id;
         unsigned int data_id;
-        int i;
         unsigned int chunk_offset;
         unsigned int parity_id;
         unsigned int disk_id;
         unsigned long long lba;
         unsigned long long slice;
+        int op[MAX_DISKS] = {0};
 
+        /* Initial a sub requst stack */
+        struct subreq_stack *subreqs = (struct subreq_stack *)malloc(0, sizeof(struct subreq_stack));
         stripe_id = 0;
         parity_id = 0;
         printf("########request lba = %lld, size = %d\n", parent->lba, parent->size);
@@ -443,6 +450,7 @@ void split_req(int *fd, struct req_info * parent, char * buf, int diskNum, struc
                         parity_req->waitTime = parent->waitTime;
                         parity_req->parent = parent;
                         parity_req->waitChild = 0;
+                        op[parity_id] = 1;
 
                         submit_aio(fd[parity_id], buf, parity_req, trace, initTime);
 
@@ -467,6 +475,7 @@ void split_req(int *fd, struct req_info * parent, char * buf, int diskNum, struc
                 sub_req->parent = parent;
                 sub_req->waitChild = 0;
                 sub_req->next = NULL;
+                op[disk_id] = 1;
 
                 submit_aio(fd[disk_id], buf, sub_req, trace, initTime);
 
@@ -474,6 +483,11 @@ void split_req(int *fd, struct req_info * parent, char * buf, int diskNum, struc
 
                 printf("disk id = %d, lba = %lld\n", disk_id, lba);
         }
+        printf("rw = ");
+        for (i = 0; i < diskNum; i++) {
+                printf("%d ", op[i]);
+        }
+        printf("\n");
 }
 
 void queue_pop(struct trace_info *trace, struct req_info *req) 
@@ -499,6 +513,16 @@ void queue_pop(struct trace_info *trace, struct req_info *req)
 		trace->front = trace->front->next;
 	}
 	free(temp);
+}
+
+void stack_push(struct subreq_stack *subreqs, struct req_info *req)
+{
+        
+}
+
+void statck_pop(struct subreq_stack *subreqs, struct req_info *req)
+{
+
 }
 
 void queue_print(struct trace_info *trace)
