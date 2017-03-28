@@ -49,10 +49,12 @@ struct req_info {
 	unsigned int type;
         long long waitTime;
 	struct req_info *next;
+        struct req_info *last;
         struct req_info *parent;
         unsigned int waitChild;
         long long slat;
         long long lat;
+        unsigned int diskid; /* 11 represents the md device */
 };
 
 struct trace_info {
@@ -64,14 +66,6 @@ struct trace_info {
 	struct req_info *front;
 	struct req_info *rear;
 };
-
-struct subreq_stack {
-        struct req_info *sub_req;
-        struct req_info *last;
-        struct req_info *next;
-        struct req_info *head;
-        struct req_info *tail;
-}
 
 struct aiocb_info {
 	struct aiocb* aiocb;
@@ -90,15 +84,13 @@ long long time_elapsed(long long begin);
 static void handle_aio(sigval_t sigval);
 static void submit_aio(int fd, void *buf,struct req_info *req,struct trace_info *trace,long long initTime);
 static void init_aio();
+//raid ops
 void split_req(int *fd, struct req_info *parent, char *buf, int diskNum, struct trace_info *trace, long long initTime);
 void preread(int *fd, struct req_info *parent, char *buf, int diskNum, struct trace_info *trace, long long initTime);
 
 //trace queue ops
 void queue_push(struct trace_info *trace, struct req_info *req);
-void queue_pop(struct trace_info *trace, struct req_info *req);
+void queue_pop(int from_head, struct trace_info *trace, struct req_info *req);
 void queue_print(struct trace_info *trace);
 
-//req stack ops
-void stack_push(struct subreq_stack *subreqs, struct req_info *req);
-void stack_pop(struct subreq_stack *subreqs, struct req_info *req);
 #endif

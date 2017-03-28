@@ -76,7 +76,7 @@ void replay(char *configName)
 	//printf("initTime=%lld\n",initTime);
 	while(trace->front)
 	{
-		queue_pop(trace, req);
+		queue_pop(1, trace, req);
 		reqTime=req->time;
 		nowTime=time_elapsed(initTime);
 #ifdef  __B_Zhang__
@@ -353,10 +353,12 @@ void trace_read(struct config_info *config,struct trace_info *trace)
                 //time:ms, lba:sectors, size:sectors, type:1<->write 0<-->read
 		sscanf(line,"%lf %lld %d %d",&req->time,&req->lba,&req->size,&req->type);
 		//push into request queue
-		req->time=req->time*1000;	//ms-->us
-		req->size=req->size*BYTE_PER_BLOCK;
-		req->lba=req->lba*BYTE_PER_BLOCK;
-                req->waitTime=0;
+		req->time = req->time*1000;	//ms-->us
+		req->size = req->size*BYTE_PER_BLOCK;
+		req->lba = req->lba*BYTE_PER_BLOCK;
+                req->waitTime = 0;
+                req->waitChild = 0;
+                req->parent = NULL;
 		queue_push(trace,req);
 	}
 	fclose(traceFile);
@@ -374,27 +376,6 @@ long long time_elapsed(long long begin)
 	return time_now()-begin;	//us
 }
 
-void queue_push(struct trace_info *trace,struct req_info *req)
-{
-	struct req_info* temp;
-	temp = (struct req_info *)malloc(sizeof(struct req_info));
-	temp->time = req->time;
-	temp->lba = req->lba;
-	temp->size = req->size;
-	temp->type = req->type;
-        temp->waitTime=req->waitTime;
-	temp->next = NULL;
-        temp->waitChild = 0;
-	if(trace->front == NULL && trace->rear == NULL)
-	{
-		trace->front = trace->rear = temp;
-	}
-	else
-	{
-		trace->rear->next = temp;
-		trace->rear = temp;
-	}
-}
 
 void preread(int *fd, struct req_info *parent, char *buf, int diskNum, struct trace_info *trace, long long initTime)
 {
@@ -416,12 +397,15 @@ void split_req(int *fd, struct req_info *parent, char *buf, int diskNum, struct 
         unsigned long long slice;
         int op[MAX_DISKS] = {0};
 
-        /* Initial a sub requst stack */
-        struct subreq_stack *subreqs = (struct subreq_stack *)malloc(0, sizeof(struct subreq_stack));
+        /* Initiate a sub request statck */
+        struct trace_info *subtrace = (struct trace_info *) malloc(sizeof(struct trace_info));
+        memset(subtrace,0, sizeof(struct trace_info));
+
+        /* Start to split request */
         stripe_id = 0;
         parity_id = 0;
-        printf("########request lba = %lld, size = %d\n", parent->lba, parent->size);
-        printf("Disk num = %d\n", diskNum);
+        printf ("########request lba = %lld, size = %d\n", parent->lba, parent->size);
+        printf ("Disk num = %d\n", diskNum);
         for (slice = parent->lba; ; slice += chunk_size) {
                 if (slice + chunk_size <= req_end)
                         len = chunk_size;
@@ -451,8 +435,9 @@ void split_req(int *fd, struct req_info *parent, char *buf, int diskNum, struct 
                         parity_req->parent = parent;
                         parity_req->waitChild = 0;
                         op[parity_id] = 1;
-
-                        submit_aio(fd[parity_id], buf, parity_req, trace, initTime);
+                        
+                        queue_push(subtrace, parity_req);
+                        //submit_aio(fd[parity_id], buf, parity_req, trace, initTime);
 
                 }
 
@@ -475,9 +460,13 @@ void split_req(int *fd, struct req_info *parent, char *buf, int diskNum, struct 
                 sub_req->parent = parent;
                 sub_req->waitChild = 0;
                 sub_req->next = NULL;
-                op[disk_id] = 1;
+                if (len >= chunk_size)
+                        op[disk_id] = 1;
+                else
+                        op[disk_id] = 2;
+                queue_push(subtrace, sub_req);
 
-                submit_aio(fd[disk_id], buf, sub_req, trace, initTime);
+                //submit_aio(fd[disk_id], buf, sub_req, trace, initTime);
 
                 parent->waitChild +=1;
 
@@ -488,41 +477,61 @@ void split_req(int *fd, struct req_info *parent, char *buf, int diskNum, struct 
                 printf("%d ", op[i]);
         }
         printf("\n");
+        queue_print(subtrace);
 }
 
-void queue_pop(struct trace_info *trace, struct req_info *req) 
+void queue_push(struct trace_info *trace,struct req_info *req)
 {
-	struct req_info* temp = trace->front;
-	if(trace->front == NULL) 
-	{
+	struct req_info* temp;
+	temp = (struct req_info *)malloc(sizeof(struct req_info));
+	temp->time = req->time;
+	temp->lba = req->lba;
+	temp->size = req->size;
+	temp->type = req->type;
+        temp->waitTime=req->waitTime;
+	temp->next = NULL;
+        temp->waitChild = req->waitChild;
+        temp->parent = req->parent;
+	if (trace->front == NULL && trace->rear == NULL) {
+		trace->front = trace->rear = temp;
+                temp->last = NULL;
+	} else {
+		trace->rear->next = temp;
+                temp->last = trace->rear;
+		trace->rear = temp;
+	}
+}
+
+void queue_pop(int from_head, struct trace_info *trace, struct req_info *req) 
+{
+	struct req_info* tmp;
+	if (trace->front == NULL) {
 		printf("Queue is Empty\n");
 		return;
 	}
-	req->time = trace->front->time;
-	req->lba  = trace->front->lba;
-	req->size = trace->front->size;
-	req->type = trace->front->type;	
-        req->waitTime=trace->front->waitTime;
-        req->parent = NULL;
-	if(trace->front == trace->rear) 
-	{
-		trace->front = trace->rear = NULL;
-	}
-	else 
-	{
-		trace->front = trace->front->next;
-	}
-	free(temp);
-}
+        if (from_head)
+                tmp = trace->front;
+        else
+                tmp = trace->rear;
 
-void stack_push(struct subreq_stack *subreqs, struct req_info *req)
-{
+        tmp = trace->rear;
+        req->time = tmp->time;
+        req->lba = tmp->lba;
+        req->size = tmp->size;
+        req->type = tmp->type;
+        req->waitTime = req->waitTime;
+        req->parent = tmp->parent;
         
-}
+        if (trace->front == trace->rear) {
+                trace->front = trace->rear = NULL;
+        } else {
+                if (from_head)
+                        trace->front = trace->front->next;
+                else
+                        trace->rear = trace->rear->last;
+        }
 
-void statck_pop(struct subreq_stack *subreqs, struct req_info *req)
-{
-
+	free(tmp);
 }
 
 void queue_print(struct trace_info *trace)
