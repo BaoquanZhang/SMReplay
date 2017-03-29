@@ -23,6 +23,7 @@ void replay(char *configName)
 	int i,j;
 	long long initTime,nowTime,reqTime,waitTime;
         long long execTime;//for bzhang's experiment
+        struct trace_info *subtrace;
 	
 	config=(struct config_info *)malloc(sizeof(struct config_info));
 	memset(config,0,sizeof(struct config_info));
@@ -30,6 +31,8 @@ void replay(char *configName)
 	memset(trace,0,sizeof(struct trace_info));
 	req=(struct req_info *)malloc(sizeof(struct req_info));
 	memset(req,0,sizeof(struct req_info));
+
+        subtrace = (struct trace_info *) malloc(sizeof(struct trace_info));
 
 	config_read(config,configName);
 	printf("starting warm up with config %s----\n",configName);
@@ -76,7 +79,11 @@ void replay(char *configName)
 	//printf("initTime=%lld\n",initTime);
 	while(trace->front)
 	{
-		queue_pop(1, trace, req);
+        
+                /* Initiate a sub request statck */
+                memset(subtrace,0, sizeof(struct trace_info));
+		
+                queue_pop(1, trace, req);
 		reqTime=req->time;
 		nowTime=time_elapsed(initTime);
 #ifdef  __B_Zhang__
@@ -95,8 +102,8 @@ void replay(char *configName)
 		}
 		req->waitTime=nowTime-reqTime;
                 //printf("wait time =%lld us\n",waitTime);
-
-                split_req(fd, req, buf, config->diskNum, trace, initTime);
+                split_req(req, config->diskNum, subtrace);
+                queue_print(subtrace);
 	}
 
         i=0;
@@ -361,6 +368,7 @@ void trace_read(struct config_info *config,struct trace_info *trace)
                 req->parent = NULL;
 		queue_push(trace,req);
 	}
+        queue_print(trace);
 	fclose(traceFile);
 }
 
@@ -377,12 +385,56 @@ long long time_elapsed(long long begin)
 }
 
 
-void preread(int *fd, struct req_info *parent, char *buf, int diskNum, struct trace_info *trace, long long initTime)
+void preread(int *op, struct req_info *parent, unsigned long long lba, int diskNum, 
+                struct trace_info *subtrace)
 {
+        int i,count = 0;
+        int size = CHUNK_SIZE * 1024;
+        int mode; /* 0-rmw; 1-rcw */
+        struct req_info *tmp;
+        if (lba == -1)
+                return;
+
+        tmp = (struct req_info *)malloc(sizeof(struct req_info));
+        for (i = 0; i < diskNum; i++) {
+                if (op[i] != 1)
+                        count++;
+                if (count <= diskNum / 2)
+                        mode = 1;
+                else
+                        mode = 0;
+        }
+        tmp->type = 0;
+        tmp->lba = lba;
+        tmp->size = size;
+        tmp->time = parent->time;
+        tmp->waitTime = parent->waitTime;
+        tmp->waitChild = 0;
+        tmp->parent = parent;
+        parent->waitChild += 1;
+
+        if (mode == 1) {
+                for (i = 0; i < diskNum; i++) {
+                        if (op[i] != 1) {
+                                tmp->diskid = i;
+                                queue_push(subtrace, tmp);
+                        }
+                }
+        }
+        else if (mode == 0) {
+                for (i=0; i < diskNum; i++) {
+                        if (op[i] != 0) {
+                                tmp->diskid = i;
+                                queue_push(subtrace, tmp);
+                        }
+                }
+        }
+
+        free(tmp);
 
 }
 
-void split_req(int *fd, struct req_info *parent, char *buf, int diskNum, struct trace_info *trace, long long initTime)
+void split_req(struct req_info *parent, int diskNum, struct trace_info *subtrace)
 {
         unsigned int chunk_size = CHUNK_SIZE * 1024;
         unsigned int stripe_size = chunk_size * (diskNum - 1);
@@ -396,14 +448,14 @@ void split_req(int *fd, struct req_info *parent, char *buf, int diskNum, struct 
         unsigned long long lba;
         unsigned long long slice;
         int op[MAX_DISKS] = {0};
-
-        /* Initiate a sub request statck */
-        struct trace_info *subtrace = (struct trace_info *) malloc(sizeof(struct trace_info));
-        memset(subtrace,0, sizeof(struct trace_info));
+        
+        struct req_info *parity_req = (struct req_info *)malloc(sizeof(struct req_info));
+        struct req_info *sub_req = (struct req_info *)malloc(sizeof(struct req_info));
 
         /* Start to split request */
         stripe_id = 0;
         parity_id = 0;
+        lba = -1;
         printf ("########request lba = %lld, size = %d\n", parent->lba, parent->size);
         printf ("Disk num = %d\n", diskNum);
         for (slice = parent->lba; ; slice += chunk_size) {
@@ -421,12 +473,13 @@ void split_req(int *fd, struct req_info *parent, char *buf, int diskNum, struct 
                 chunk_offset = slice % chunk_size;
                 
                 if (stripe_id != slice / stripe_size) {
+                       
+                        memset(op, 0 , sizeof(op)); /* reset op for new stripe */
                         stripe_id = slice / stripe_size;
                         parity_id = stripe_id % diskNum;
                         lba = (long long) (stripe_id * stripe_size) + chunk_offset;
                         printf("stripe id = %ld\n", stripe_id);
                         printf("parity id = %d, lba = %lld\n", parity_id, lba);
-                        struct req_info *parity_req = (struct req_info *)malloc(sizeof(struct req_info));
                         parity_req->time = parent->time;
                         parity_req->lba = lba;
                         parity_req->size = len;
@@ -435,6 +488,7 @@ void split_req(int *fd, struct req_info *parent, char *buf, int diskNum, struct 
                         parity_req->parent = parent;
                         parity_req->waitChild = 0;
                         op[parity_id] = 1;
+                        parity_req->diskid = parity_id;
                         
                         queue_push(subtrace, parity_req);
                         //submit_aio(fd[parity_id], buf, parity_req, trace, initTime);
@@ -446,7 +500,6 @@ void split_req(int *fd, struct req_info *parent, char *buf, int diskNum, struct 
                 else
                         disk_id = data_id + 1;
 
-                struct req_info *sub_req = (struct req_info *)malloc(sizeof(struct req_info));
                 if (sub_req == NULL) {
                         printf("allocate sub request failed!\n");
                         exit(-1);
@@ -464,20 +517,28 @@ void split_req(int *fd, struct req_info *parent, char *buf, int diskNum, struct 
                         op[disk_id] = 1;
                 else
                         op[disk_id] = 2;
+                sub_req->diskid = disk_id;
                 queue_push(subtrace, sub_req);
 
                 //submit_aio(fd[disk_id], buf, sub_req, trace, initTime);
 
-                parent->waitChild +=1;
+                parent->waitChild += 1;
 
                 printf("disk id = %d, lba = %lld\n", disk_id, lba);
+
         }
+        
+        /* finish spliting: pre-read before write */
+        preread(op, parent, lba, diskNum, subtrace);
+        
         printf("rw = ");
         for (i = 0; i < diskNum; i++) {
                 printf("%d ", op[i]);
         }
         printf("\n");
-        queue_print(subtrace);
+        
+        free(parity_req);
+        free(sub_req);
 }
 
 void queue_push(struct trace_info *trace,struct req_info *req)
@@ -492,6 +553,7 @@ void queue_push(struct trace_info *trace,struct req_info *req)
 	temp->next = NULL;
         temp->waitChild = req->waitChild;
         temp->parent = req->parent;
+        temp->diskid = req->diskid;
 	if (trace->front == NULL && trace->rear == NULL) {
 		trace->front = trace->rear = temp;
                 temp->last = NULL;
@@ -514,7 +576,6 @@ void queue_pop(int from_head, struct trace_info *trace, struct req_info *req)
         else
                 tmp = trace->rear;
 
-        tmp = trace->rear;
         req->time = tmp->time;
         req->lba = tmp->lba;
         req->size = tmp->size;
@@ -537,13 +598,14 @@ void queue_pop(int from_head, struct trace_info *trace, struct req_info *req)
 void queue_print(struct trace_info *trace)
 {
 	struct req_info* temp = trace->front;
+        printf("request info: timestamp, lba, size, type, diskid \n");
 	while(temp) 
 	{
 		printf("%lf ",temp->time);
 		printf("%lld ",temp->lba);
 		printf("%d ",temp->size);
-		printf("%d\n",temp->type);
-		printf("%lld\n",temp->waitTime);
+		printf("%d ",temp->type);
+		printf("%d\n",temp->diskid);
 		temp = temp->next;
 	}
 }

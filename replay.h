@@ -85,8 +85,8 @@ static void handle_aio(sigval_t sigval);
 static void submit_aio(int fd, void *buf,struct req_info *req,struct trace_info *trace,long long initTime);
 static void init_aio();
 //raid ops
-void split_req(int *fd, struct req_info *parent, char *buf, int diskNum, struct trace_info *trace, long long initTime);
-void preread(int *fd, struct req_info *parent, char *buf, int diskNum, struct trace_info *trace, long long initTime);
+void split_req(struct req_info *parent, int diskNum, struct trace_info *subtrace);
+void preread(int *op, struct req_info *parent, unsigned long long lba, int diskNum, struct trace_info *subtrace);
 
 //trace queue ops
 void queue_push(struct trace_info *trace, struct req_info *req);
