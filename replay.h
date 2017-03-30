@@ -82,15 +82,17 @@ void trace_read(struct config_info *config,struct trace_info *trace);
 long long time_now();
 long long time_elapsed(long long begin);
 static void handle_aio(sigval_t sigval);
-static void submit_aio(int fd, void *buf,struct req_info *req,struct trace_info *trace,long long initTime);
+static void submit_aio(int fd, void *buf, struct req_info *req, struct trace_info *trace, long long initTime);
 static void init_aio();
 //raid ops
 void split_req(struct req_info *parent, int diskNum, struct trace_info *subtrace);
 void preread(int *op, struct req_info *parent, unsigned long long lba, int diskNum, struct trace_info *subtrace);
+int submit_trace(int *fd, void *buf, struct trace_info *subtrace, struct trace_info *trace, long long initTime);
 
 //trace queue ops
 void queue_push(struct trace_info *trace, struct req_info *req);
 void queue_pop(int from_head, struct trace_info *trace, struct req_info *req);
 void queue_print(struct trace_info *trace);
+void copy_req(struct req_info *src, struct req_info *des);
 
 #endif

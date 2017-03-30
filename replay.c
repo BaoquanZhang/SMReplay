@@ -56,7 +56,7 @@ void replay(char *configName)
                 fd[j] = open(config->device[j], O_DIRECT | O_SYNC | O_RDWR); 
                 if (fd[j] < 0) {
                         fprintf(stderr, "Value of errno: %d\n", errno);
-                        printf("Cannot open\n");
+                        printf("Cannot open %d\n", j);
                         exit(-1);
                 }
         }
@@ -104,6 +104,7 @@ void replay(char *configName)
                 //printf("wait time =%lld us\n",waitTime);
                 split_req(req, config->diskNum, subtrace);
                 queue_print(subtrace);
+                submit_trace(fd, buf, subtrace, trace, initTime);
 	}
 
         i=0;
@@ -137,6 +138,8 @@ static void handle_aio(sigval_t sigval)
 	//cb->trace->latencySum+=latency;
 
         sub_req = cb->req;
+        printf("returned: %d, %lld, %d\n", 
+                        sub_req->diskid, sub_req->lba, sub_req->size);
         parent = sub_req->parent;
         sub_req->slat = latency_submit;
         sub_req->lat = latency_issue;
@@ -168,16 +171,19 @@ static void handle_aio(sigval_t sigval)
                 }
 
                 parent->waitChild -= 1;
+                printf("Has parent! Parent %d is waiting %d child.\n", 
+                                parent->size, parent->waitChild);
                 if (parent->waitChild == 0) {
                         fprintf(cb->trace->logFile,
                                         "%-16lf %-12lld %-12lld %-5d %-2d %-2lld %lld \n",
-                                        cb->req->time,cb->req->waitTime,cb->req->lba,cb->req->size,
-                                        cb->req->type,latency_submit,latency_issue);
+                                        parent->time, parent->waitTime, parent->lba, parent->size,
+                                        parent->type, parent->slat, parent->lat);
                         fflush(cb->trace->logFile);
                         cb->trace->outNum++;
                         if (cb->trace->outNum % 10000 == 0) {
                                 printf("---has replayed %d\n",cb->trace->outNum);
                         }
+                        free(parent);
                 }
         }
 
@@ -186,6 +192,21 @@ static void handle_aio(sigval_t sigval)
 	free(cb);
 }
 
+int submit_trace(int *fd, void *buf, struct trace_info *subtrace, struct trace_info *trace, long long initTime)
+{
+        struct req_info *req;
+        req = (struct req_info *)malloc(sizeof(struct req_info));
+        printf("submitting reqs: diskid, lba, type, size\n");
+        while (subtrace->rear) {
+                queue_pop(0, subtrace, req);
+                printf("%d, %lld, %d, %d\n", 
+                                req->diskid, req->lba, req->type, req->size);
+                submit_aio(fd[req->diskid], buf, req, trace, initTime);
+        }
+
+        free(req);
+        return 0;
+}
 static void submit_aio(int fd, void *buf, struct req_info *req,struct trace_info *trace,long long initTime)
 {
 	struct aiocb_info *cb;
@@ -225,7 +246,8 @@ static void submit_aio(int fd, void *buf, struct req_info *req,struct trace_info
 		cb->aiocb->aio_buf = buf;
 	}
 
-	cb->req=req;	//WTF
+	//cb->req=req;	//WTF
+        copy_req(req, cb->req);
 	//cb->req->time=req->time;
 	//cb->req->lba=req->lba;
 	//cb->req->size=req->size;
@@ -338,7 +360,6 @@ void trace_read(struct config_info *config,struct trace_info *trace)
 	struct req_info* req;
 
 	traceFile=fopen(config->traceFileName,"r");
-	req=(struct req_info *)malloc(sizeof(struct req_info));
 	if(traceFile==NULL)
 	{
 		printf("error: opening trace file\n");
@@ -349,6 +370,8 @@ void trace_read(struct config_info *config,struct trace_info *trace)
 	trace->outNum=0;
 	trace->latencySum=0;
 	trace->logFile=fopen(config->logFileName,"w");
+        
+        req=(struct req_info *)malloc(sizeof(struct req_info));
 
 	while(fgets(line,sizeof(line),traceFile))
 	{
@@ -360,16 +383,17 @@ void trace_read(struct config_info *config,struct trace_info *trace)
                 //time:ms, lba:sectors, size:sectors, type:1<->write 0<-->read
 		sscanf(line,"%lf %lld %d %d",&req->time,&req->lba,&req->size,&req->type);
 		//push into request queue
-		req->time = req->time*1000;	//ms-->us
-		req->size = req->size*BYTE_PER_BLOCK;
-		req->lba = req->lba*BYTE_PER_BLOCK;
+		req->time = req->time * 1000;	//ms-->us
+		req->size = req->size * BYTE_PER_BLOCK;
+		req->lba = req->lba * BYTE_PER_BLOCK;
                 req->waitTime = 0;
                 req->waitChild = 0;
                 req->parent = NULL;
-		queue_push(trace,req);
+		queue_push(trace, req);
 	}
         queue_print(trace);
 	fclose(traceFile);
+        free(req);
 }
 
 long long time_now()
@@ -395,7 +419,6 @@ void preread(int *op, struct req_info *parent, unsigned long long lba, int diskN
         if (lba == -1)
                 return;
 
-        tmp = (struct req_info *)malloc(sizeof(struct req_info));
         for (i = 0; i < diskNum; i++) {
                 if (op[i] != 1)
                         count++;
@@ -404,6 +427,7 @@ void preread(int *op, struct req_info *parent, unsigned long long lba, int diskN
                 else
                         mode = 0;
         }
+        tmp = (struct req_info *)malloc(sizeof(struct req_info));
         tmp->type = 0;
         tmp->lba = lba;
         tmp->size = size;
@@ -411,13 +435,13 @@ void preread(int *op, struct req_info *parent, unsigned long long lba, int diskN
         tmp->waitTime = parent->waitTime;
         tmp->waitChild = 0;
         tmp->parent = parent;
-        parent->waitChild += 1;
 
         if (mode == 1) {
                 for (i = 0; i < diskNum; i++) {
                         if (op[i] != 1) {
                                 tmp->diskid = i;
                                 queue_push(subtrace, tmp);
+                                parent->waitChild += 1;
                         }
                 }
         }
@@ -426,6 +450,7 @@ void preread(int *op, struct req_info *parent, unsigned long long lba, int diskN
                         if (op[i] != 0) {
                                 tmp->diskid = i;
                                 queue_push(subtrace, tmp);
+                                parent->waitChild += 1;
                         }
                 }
         }
@@ -434,12 +459,12 @@ void preread(int *op, struct req_info *parent, unsigned long long lba, int diskN
 
 }
 
-void split_req(struct req_info *parent, int diskNum, struct trace_info *subtrace)
+void split_req(struct req_info *req, int diskNum, struct trace_info *subtrace)
 {
         unsigned int chunk_size = CHUNK_SIZE * 1024;
         unsigned int stripe_size = chunk_size * (diskNum - 1);
         int i, len;
-        long long req_end = parent->lba + parent->size;
+        long long req_end;
         unsigned long stripe_id;
         unsigned int data_id;
         unsigned int chunk_offset;
@@ -451,11 +476,15 @@ void split_req(struct req_info *parent, int diskNum, struct trace_info *subtrace
         
         struct req_info *parity_req = (struct req_info *)malloc(sizeof(struct req_info));
         struct req_info *sub_req = (struct req_info *)malloc(sizeof(struct req_info));
+        struct req_info *parent = (struct req_info *)malloc(sizeof(struct req_info));
+        
+        copy_req(req, parent);
 
         /* Start to split request */
         stripe_id = 0;
         parity_id = 0;
         lba = -1;
+        req_end = parent->lba + parent->size;
         printf ("########request lba = %lld, size = %d\n", parent->lba, parent->size);
         printf ("Disk num = %d\n", diskNum);
         for (slice = parent->lba; ; slice += chunk_size) {
@@ -489,6 +518,7 @@ void split_req(struct req_info *parent, int diskNum, struct trace_info *subtrace
                         parity_req->waitChild = 0;
                         op[parity_id] = 1;
                         parity_req->diskid = parity_id;
+                        parent->waitChild += 1;
                         
                         queue_push(subtrace, parity_req);
                         //submit_aio(fd[parity_id], buf, parity_req, trace, initTime);
@@ -541,26 +571,38 @@ void split_req(struct req_info *parent, int diskNum, struct trace_info *subtrace
         free(sub_req);
 }
 
-void queue_push(struct trace_info *trace,struct req_info *req)
+void copy_req(struct req_info *src_req, struct req_info *des_req)
 {
-	struct req_info* temp;
-	temp = (struct req_info *)malloc(sizeof(struct req_info));
-	temp->time = req->time;
-	temp->lba = req->lba;
-	temp->size = req->size;
-	temp->type = req->type;
-        temp->waitTime=req->waitTime;
-	temp->next = NULL;
-        temp->waitChild = req->waitChild;
-        temp->parent = req->parent;
-        temp->diskid = req->diskid;
-	if (trace->front == NULL && trace->rear == NULL) {
-		trace->front = trace->rear = temp;
-                temp->last = NULL;
+        des_req->time = src_req->time;
+        des_req->size = src_req->size;
+        des_req->lba = src_req->lba;
+        des_req->type = src_req->type;
+        des_req->waitTime = src_req->waitTime;
+        des_req->next = src_req->next;
+        des_req->last = src_req->last;
+        des_req->parent = src_req->parent;
+        des_req->waitChild = src_req->waitChild;
+        des_req->slat = src_req->slat;
+        des_req->lat = src_req->lat;
+        des_req->diskid = src_req->diskid;
+}
+
+void queue_push(struct trace_info *trace, struct req_info *req)
+{
+	struct req_info* tmp;
+	tmp = (struct req_info *)malloc(sizeof(struct req_info));
+        
+        copy_req(req, tmp);
+	
+        if (trace->front == NULL && trace->rear == NULL) {
+		trace->front = trace->rear = tmp;
+                tmp->last = NULL;
+                tmp->next = NULL;
 	} else {
-		trace->rear->next = temp;
-                temp->last = trace->rear;
-		trace->rear = temp;
+		trace->rear->next = tmp;
+                tmp->last = trace->rear;
+		trace->rear = tmp;
+                tmp->next = NULL;
 	}
 }
 
@@ -576,12 +618,7 @@ void queue_pop(int from_head, struct trace_info *trace, struct req_info *req)
         else
                 tmp = trace->rear;
 
-        req->time = tmp->time;
-        req->lba = tmp->lba;
-        req->size = tmp->size;
-        req->type = tmp->type;
-        req->waitTime = req->waitTime;
-        req->parent = tmp->parent;
+        copy_req(tmp, req);
         
         if (trace->front == trace->rear) {
                 trace->front = trace->rear = NULL;
@@ -597,15 +634,15 @@ void queue_pop(int from_head, struct trace_info *trace, struct req_info *req)
 
 void queue_print(struct trace_info *trace)
 {
-	struct req_info* temp = trace->front;
+	struct req_info* tmp = trace->front;
         printf("request info: timestamp, lba, size, type, diskid \n");
-	while(temp) 
+	while(tmp) 
 	{
-		printf("%lf ",temp->time);
-		printf("%lld ",temp->lba);
-		printf("%d ",temp->size);
-		printf("%d ",temp->type);
-		printf("%d\n",temp->diskid);
-		temp = temp->next;
+		printf("%lf ",tmp->time);
+		printf("%lld ",tmp->lba);
+		printf("%d ",tmp->size);
+		printf("%d ",tmp->type);
+		printf("%d\n",tmp->diskid);
+		tmp = tmp->next;
 	}
 }
