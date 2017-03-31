@@ -103,7 +103,10 @@ void replay(char *configName)
 		req->waitTime=nowTime-reqTime;
                 //printf("wait time =%lld us\n",waitTime);
                 split_req(req, config->diskNum, subtrace);
-                queue_print(subtrace);
+                
+                if (DEBUG)
+                        queue_print(subtrace);
+                
                 submit_trace(fd, buf, subtrace, trace, initTime);
 	}
 
@@ -138,8 +141,10 @@ static void handle_aio(sigval_t sigval)
 	//cb->trace->latencySum+=latency;
 
         sub_req = cb->req;
-        printf("returned: %d, %lld, %d\n", 
-                        sub_req->diskid, sub_req->lba, sub_req->size);
+        if (DEBUG == 1) {
+                printf("returned: %d, %lld, %d\n", 
+                                sub_req->diskid, sub_req->lba, sub_req->size);
+        }
         parent = sub_req->parent;
         sub_req->slat = latency_submit;
         sub_req->lat = latency_issue;
@@ -171,8 +176,10 @@ static void handle_aio(sigval_t sigval)
                 }
 
                 parent->waitChild -= 1;
-                printf("Has parent! Parent %d is waiting %d child.\n", 
+                if (DEBUG) {
+                        printf("Has parent! Parent %d is waiting %d child.\n", 
                                 parent->size, parent->waitChild);
+                }
                 if (parent->waitChild == 0) {
                         fprintf(cb->trace->logFile,
                                         "%-16lf %-12lld %-12lld %-5d %-2d %-2lld %lld \n",
@@ -391,8 +398,11 @@ void trace_read(struct config_info *config,struct trace_info *trace)
                 req->parent = NULL;
 		queue_push(trace, req);
 	}
-        queue_print(trace);
-	fclose(traceFile);
+
+        if (DEBUG)
+                queue_print(trace);
+	
+        fclose(traceFile);
         free(req);
 }
 
@@ -485,8 +495,12 @@ void split_req(struct req_info *req, int diskNum, struct trace_info *subtrace)
         parity_id = 0;
         lba = -1;
         req_end = parent->lba + parent->size;
-        printf ("########request lba = %lld, size = %d\n", parent->lba, parent->size);
-        printf ("Disk num = %d\n", diskNum);
+        
+        if (DEBUG) {
+                printf ("########request lba = %lld, size = %d\n", parent->lba, parent->size);
+                printf ("Disk num = %d\n", diskNum);
+        }
+        
         for (slice = parent->lba; ; slice += chunk_size) {
                 if (slice + chunk_size <= req_end)
                         len = chunk_size;
@@ -507,8 +521,12 @@ void split_req(struct req_info *req, int diskNum, struct trace_info *subtrace)
                         stripe_id = slice / stripe_size;
                         parity_id = stripe_id % diskNum;
                         lba = (long long) (stripe_id * stripe_size) + chunk_offset;
-                        printf("stripe id = %ld\n", stripe_id);
-                        printf("parity id = %d, lba = %lld\n", parity_id, lba);
+                        
+                        if (DEBUG) {
+                                printf("stripe id = %ld\n", stripe_id);
+                                printf("parity id = %d, lba = %lld\n", parity_id, lba);
+                        }
+                        
                         parity_req->time = parent->time;
                         parity_req->lba = lba;
                         parity_req->size = len;
@@ -518,11 +536,11 @@ void split_req(struct req_info *req, int diskNum, struct trace_info *subtrace)
                         parity_req->waitChild = 0;
                         op[parity_id] = 1;
                         parity_req->diskid = parity_id;
-                        parent->waitChild += 1;
                         
-                        queue_push(subtrace, parity_req);
-                        //submit_aio(fd[parity_id], buf, parity_req, trace, initTime);
-
+                        if (parent->type == 1) {
+                                queue_push(subtrace, parity_req);
+                                parent->waitChild += 1;
+                        }
                 }
 
                 if (data_id < parity_id)
@@ -550,8 +568,6 @@ void split_req(struct req_info *req, int diskNum, struct trace_info *subtrace)
                 sub_req->diskid = disk_id;
                 queue_push(subtrace, sub_req);
 
-                //submit_aio(fd[disk_id], buf, sub_req, trace, initTime);
-
                 parent->waitChild += 1;
 
                 printf("disk id = %d, lba = %lld\n", disk_id, lba);
@@ -559,13 +575,8 @@ void split_req(struct req_info *req, int diskNum, struct trace_info *subtrace)
         }
         
         /* finish spliting: pre-read before write */
-        preread(op, parent, lba, diskNum, subtrace);
-        
-        printf("rw = ");
-        for (i = 0; i < diskNum; i++) {
-                printf("%d ", op[i]);
-        }
-        printf("\n");
+        if (parent->type == 1) 
+                preread(op, parent, lba, diskNum, subtrace);
         
         free(parity_req);
         free(sub_req);
