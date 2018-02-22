@@ -1,0 +1,30 @@
+bzhang@smr-umh:~/HARD/SMReplay_idle/config$ cd ..
+bzhang@smr-umh:~/HARD/SMReplay_idle$ sudo ./replay config/30G_sdh_i2_e1_1w9r.ini
+[sudo] password for bzhang:
+starting warm up with config config/30G_sdh_i2_e1_1w9r.ini----
+starting replay IO trace trace/30G_1w9r.trace----
+config->device=/dev/sdh
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

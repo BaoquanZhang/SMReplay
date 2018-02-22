@@ -1,6 +1,9 @@
 #include "replay.h"
+#include <pthread.h>
 
 #define __B_Zhang__
+
+pthread_mutex_t g_io_mutex;
 
 void main(int argc, char *argv[])
 {
@@ -44,9 +47,9 @@ void replay(char *configName)
 	fd = open(config->device, O_DIRECT | O_SYNC | O_RDWR); 
 	if(fd < 0) 
 	{
-		fprintf(stderr, "Value of errno: %d\n", errno);
-       	printf("Cannot open\n");
-    	exit(-1);
+                fprintf(stderr, "Value of errno: %d\n", errno);
+       	        printf("Cannot open\n");
+    	        exit(-1);
 	}
 
 	if (posix_memalign((void**)&buf, MEM_ALIGN, LARGEST_REQUEST_SIZE * BYTE_PER_BLOCK))
@@ -67,36 +70,36 @@ void replay(char *configName)
 	//printf("initTime=%lld\n",initTime);
 	while(trace->front)
 	{
-		queue_pop(trace,req);
+		nowTime=time_elapsed(initTime);
+                #ifdef  __B_Zhang__
+                if(nowTime-execTime > config->exec * 1000000)
+                {
+                        sleep(config->idle);
+                        execTime=time_elapsed(initTime);
+                }
+                #endif
+
+                queue_pop(trace,req);
 		reqTime=req->time;
 		nowTime=time_elapsed(initTime);
-#ifdef  __B_Zhang__
-        if(nowTime-execTime > config->exec * 1000000)
-        {
-            sleep(config->idle);
-            execTime=time_elapsed(initTime);
-        }
-#endif
 
-		nowTime=time_elapsed(initTime);
 		while(nowTime < reqTime)
 		{
 			//usleep(waitTime);
 			nowTime=time_elapsed(initTime);
 		}
-		req->waitTime=nowTime-reqTime;
-        //printf("wait time =%lld us\n",waitTime);
-        
-	    submit_aio(fd,buf,req,trace,initTime);
+               
+                pthread_mutex_lock(&g_io_mutex); 
+
+                nowTime=time_elapsed(initTime);
+                req->waitTime=nowTime-reqTime;
+                //printf("wait time =%lld us\n",waitTime);
+
+	        submit_aio(fd,buf,req,trace,initTime);
 	}
         i=0;
 	while(trace->inNum > trace->outNum)
 	{
-                //i++;
-                //if(i>100)
-                //{
-                //      break;
-                //}
 		printf("trace->inNum=%d\n",trace->inNum);
 		printf("trace->outNum=%d\n",trace->outNum);
 		printf("begin sleepping 1 second------\n");
@@ -116,6 +119,8 @@ static void handle_aio(sigval_t sigval)
 	unsigned long long latency_submit,latency_issue;
 	int error;
 	int count;
+
+        pthread_mutex_unlock(&g_io_mutex);
 
 	cb=(struct aiocb_info *)sigval.sival_ptr;
 	latency_submit=time_elapsed(cb->beginTime_submit);
@@ -199,13 +204,14 @@ static void submit_aio(int fd, void *buf, struct req_info *req,struct trace_info
 	cb->req->lba=req->lba;
 	cb->req->size=req->size;
 	cb->req->type=req->type;
-    cb->req->waitTime=req->waitTime;
+        cb->req->waitTime=req->waitTime;
 
 	/********************************/
-    cb->beginTime_submit=time_now();// latency from the req was submitted
-    cb->beginTime_issue=req->time+initTime; //latency from the req was issued 
-    /********************************/
+        cb->beginTime_submit=time_now();// latency from the req was submitted
+        cb->beginTime_issue=req->time+initTime; //latency from the req was issued 
+        /********************************/
 	cb->trace=trace;
+
 
 	if(req->type==1)
 	{
@@ -218,6 +224,7 @@ static void submit_aio(int fd, void *buf, struct req_info *req,struct trace_info
 	//while(aio_error(cb->aiocb)==EINPROGRESS);
 	if(error)
 	{
+                pthread_mutex_unlock(&g_io_mutex);
 		fprintf(stderr, "Error performing i/o");
 		exit(-1);
 	}
@@ -251,22 +258,24 @@ void config_read(struct config_info *config,const char *filename)
 	memset(line,0,sizeof(char)*BUFSIZE);
 	while(fgets(line,sizeof(line),configFile))
 	{
-		if(line[0]=='#'||line[0]==' ') 
+                if(line[0]=='#'||line[0]==' ') 
 		{
 			continue;
 		}
-    	ptr=strchr(line,'=');
-	    if(!ptr)
+                ptr=strchr(line,'=');
+	    
+                if(!ptr)
 		{
 			continue;
 		} 
-       	name=ptr-line;	//the end of name string+1
-       	value=name+1;	//the start of value string
-	    while(line[name-1]==' ') 
+       	
+                name=ptr-line;	//the end of name string+1
+                value=name+1;	//the start of value string
+	        while(line[name-1]==' ') 
 		{
 			name--;
 		}
-       	line[name]=0;
+       	        line[name]=0;
 
 		if(strcmp(line,"device")==0)
 		{
