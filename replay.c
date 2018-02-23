@@ -1,7 +1,7 @@
 #include "replay.h"
 #include <pthread.h>
 
-#define __B_Zhang__
+//#define __B_Zhang__
 
 pthread_mutex_t g_io_mutex;
 
@@ -81,13 +81,15 @@ void replay(char *configName)
 
                 queue_pop(trace,req);
 		reqTime=req->time;
-		nowTime=time_elapsed(initTime);
+		//nowTime=time_elapsed(initTime);
 
-		while(nowTime < reqTime)
-		{
+                // we comment the follow part out
+                // since we are considering to replay without timestamp
+		//while(nowTime < reqTime)
+		//{
 			//usleep(waitTime);
-			nowTime=time_elapsed(initTime);
-		}
+		//	nowTime=time_elapsed(initTime);
+		//}
                
                 pthread_mutex_lock(&g_io_mutex); 
 
