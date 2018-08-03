@@ -1,8 +1,6 @@
 #include "replay.h"
 #include <pthread.h>
 
-#define __B_Zhang__
-
 pthread_mutex_t g_io_mutex;
 
 void main(int argc, char *argv[])
@@ -22,8 +20,9 @@ void replay(char *configName)
 	int fd;
 	char *buf;
 	int i;
-	long long initTime,nowTime,reqTime,waitTime;
-        long long execTime;//for bzhang's experiment
+	long long initTime, nowTime, reqTime, waitTime;
+    long long execTime;//for bzhang's experiment
+    long long last_check = 0;
 	
 	config=(struct config_info *)malloc(sizeof(struct config_info));
 	memset(config,0,sizeof(struct config_info));
@@ -47,9 +46,9 @@ void replay(char *configName)
 	fd = open(config->device, O_DIRECT | O_SYNC | O_RDWR); 
 	if(fd < 0) 
 	{
-                fprintf(stderr, "Value of errno: %d\n", errno);
-       	        printf("Cannot open\n");
-    	        exit(-1);
+        fprintf(stderr, "Value of errno: %d\n", errno);
+       	printf("Cannot open\n");
+    	exit(-1);
 	}
 
 	if (posix_memalign((void**)&buf, MEM_ALIGN, LARGEST_REQUEST_SIZE * BYTE_PER_BLOCK))
@@ -57,51 +56,58 @@ void replay(char *configName)
 		fprintf(stderr, "Error allocating buffer\n");
 		return;
 	}
-	for(i=0;i<LARGEST_REQUEST_SIZE*BYTE_PER_BLOCK;i++)
+
+	for (i=0; i<LARGEST_REQUEST_SIZE*BYTE_PER_BLOCK; i++)
 	{
 		//Generate random alphabets to write to file
-		buf[i]=(char)(rand()%26+65);
+		buf[i] = (char)(rand()%26+65);
 	}
 
 	init_aio();
 
-	initTime=time_now();
-        execTime=0;
+	initTime = time_now();
+    execTime = 0;
 	//printf("initTime=%lld\n",initTime);
-	while(trace->front)
+	while (trace->front)
 	{
-		nowTime=time_elapsed(initTime);
-                #ifdef  __B_Zhang__
-                if(nowTime-execTime > config->exec * 1000000)
-                {
-                        sleep(config->idle);
-                        execTime=time_elapsed(initTime);
-                }
-                #endif
+		nowTime = time_elapsed(initTime);
+        if (nowTime - last_check > NSZONE_INTERVAL) 
+        {
+            fprintf(trace->zoneLog, "%lld %d\n", nowTime, count_nszone(config));
+            fflush(trace->zoneLog);
+            last_check = nowTime;
+        }
 
-                queue_pop(trace,req);
-		reqTime=req->time;
-		nowTime=time_elapsed(initTime);
+        if (config->idle > 0) {
+            if (nowTime-execTime > config->exec * 1000000)
+            {
+                sleep(config->idle);
+                execTime=time_elapsed(initTime);
+            }
+        }
 
-		while(nowTime < reqTime)
+        queue_pop(trace,req);
+		reqTime = req->time;
+		nowTime = time_elapsed(initTime);
+
+		while (nowTime < reqTime)
 		{
 			//usleep(waitTime);
-			nowTime=time_elapsed(initTime);
+			nowTime = time_elapsed(initTime);
 		}
                
-                pthread_mutex_lock(&g_io_mutex); 
+        pthread_mutex_lock(&g_io_mutex); 
 
-                nowTime=time_elapsed(initTime);
-                req->waitTime=nowTime-reqTime;
-                //printf("wait time =%lld us\n",waitTime);
-
-	        submit_aio(fd,buf,req,trace,initTime);
+        nowTime = time_elapsed(initTime);
+        req->waitTime = nowTime - reqTime;
+        //printf("wait time =%lld us\n",waitTime);
+        submit_aio(fd, buf, req, trace, initTime);
 	}
-        i=0;
-	while(trace->inNum > trace->outNum)
+    i = 0;
+	while (trace->inNum > trace->outNum)
 	{
-		printf("trace->inNum=%d\n",trace->inNum);
-		printf("trace->outNum=%d\n",trace->outNum);
+		printf("trace->inNum=%d\n", trace->inNum);
+		printf("trace->outNum=%d\n", trace->outNum);
 		printf("begin sleepping 1 second------\n");
 		sleep(1);
 	}
@@ -109,6 +115,7 @@ void replay(char *configName)
 	free(buf);
 	free(config);
 	fclose(trace->logFile);
+	fclose(trace->zoneLog);
 	free(trace);
 	free(req);
 }
@@ -120,17 +127,17 @@ static void handle_aio(sigval_t sigval)
 	int error;
 	int count;
 
-        pthread_mutex_unlock(&g_io_mutex);
+    pthread_mutex_unlock(&g_io_mutex);
 
 	cb=(struct aiocb_info *)sigval.sival_ptr;
-	latency_submit=time_elapsed(cb->beginTime_submit);
-	latency_issue=time_elapsed(cb->beginTime_issue);
+	latency_submit = time_elapsed(cb->beginTime_submit);
+	latency_issue = time_elapsed(cb->beginTime_issue);
 	//cb->trace->latencySum+=latency;
 
-	error=aio_error(cb->aiocb);
-	if(error)
+	error = aio_error(cb->aiocb);
+	if (error)
 	{
-		if(error != ECANCELED)
+		if (error != ECANCELED)
 		{
 			fprintf(stderr,"Error completing i/o:%d\n",error);
 		}
@@ -140,8 +147,8 @@ static void handle_aio(sigval_t sigval)
 		}
 		return;
 	}
-	count=aio_return(cb->aiocb);
-	if(count<(int)cb->aiocb->aio_nbytes)
+	count = aio_return(cb->aiocb);
+	if (count < (int)cb->aiocb->aio_nbytes)
 	{
 		fprintf(stderr, "Warning I/O completed:%db but requested:%ldb\n",
 			count,cb->aiocb->aio_nbytes);
@@ -204,14 +211,13 @@ static void submit_aio(int fd, void *buf, struct req_info *req,struct trace_info
 	cb->req->lba=req->lba;
 	cb->req->size=req->size;
 	cb->req->type=req->type;
-        cb->req->waitTime=req->waitTime;
+    cb->req->waitTime=req->waitTime;
 
 	/********************************/
-        cb->beginTime_submit=time_now();// latency from the req was submitted
-        cb->beginTime_issue=req->time+initTime; //latency from the req was issued 
-        /********************************/
+    cb->beginTime_submit=time_now();// latency from the req was submitted
+    cb->beginTime_issue=req->time+initTime; //latency from the req was issued 
+    /********************************/
 	cb->trace=trace;
-
 
 	if(req->type==1)
 	{
@@ -224,7 +230,7 @@ static void submit_aio(int fd, void *buf, struct req_info *req,struct trace_info
 	//while(aio_error(cb->aiocb)==EINPROGRESS);
 	if(error)
 	{
-                pthread_mutex_unlock(&g_io_mutex);
+        pthread_mutex_unlock(&g_io_mutex);
 		fprintf(stderr, "Error performing i/o");
 		exit(-1);
 	}
@@ -248,34 +254,34 @@ void config_read(struct config_info *config,const char *filename)
 	char *ptr;
 	FILE *configFile;
 	
-	configFile=fopen(filename,"r");
-	if(configFile==NULL)
+	configFile = fopen(filename,"r");
+	if(configFile == NULL)
 	{
 		printf("error: opening config file\n");
 		exit(-1);
 	}
 	//read config file
-	memset(line,0,sizeof(char)*BUFSIZE);
-	while(fgets(line,sizeof(line),configFile))
+	memset(line, 0, sizeof(char)*BUFSIZE);
+	while (fgets(line, sizeof(line), configFile))
 	{
-                if(line[0]=='#'||line[0]==' ') 
+        if(line[0]=='#' || line[0]==' ') 
 		{
 			continue;
 		}
-                ptr=strchr(line,'=');
+        ptr=strchr(line,'=');
 	    
-                if(!ptr)
+        if(!ptr)
 		{
 			continue;
 		} 
        	
-                name=ptr-line;	//the end of name string+1
-                value=name+1;	//the start of value string
-	        while(line[name-1]==' ') 
+        name = ptr - line;	//the end of name string+1
+        value= name + 1;	//the start of value string
+	    while(line[name-1]==' ') 
 		{
 			name--;
 		}
-       	        line[name]=0;
+       	line[name]=0;
 
 		if(strcmp(line,"device")==0)
 		{
@@ -284,6 +290,10 @@ void config_read(struct config_info *config,const char *filename)
 		else if(strcmp(line,"trace")==0)
 		{
 			sscanf(line+value,"%s",config->traceFileName);
+		}
+		else if(strcmp(line,"zonelog")==0)
+		{
+			sscanf(line+value,"%s",config->zoneLog);
 		}
 		else if(strcmp(line,"log")==0)
 		{
@@ -302,7 +312,7 @@ void config_read(struct config_info *config,const char *filename)
 	fclose(configFile);
 }
 
-void trace_read(struct config_info *config,struct trace_info *trace)
+void trace_read(struct config_info *config, struct trace_info *trace)
 {
 	FILE *traceFile;
 	char line[BUFSIZE];
@@ -319,11 +329,13 @@ void trace_read(struct config_info *config,struct trace_info *trace)
 	trace->inNum=0;
 	trace->outNum=0;
 	trace->latencySum=0;
-	trace->logFile=fopen(config->logFileName,"w");
+	trace->logFile = fopen(config->logFileName, "w");
+    printf("zone log : %s\n", config->zoneLog);
+	trace->zoneLog = fopen(config->zoneLog, "w");
 
-	while(fgets(line,sizeof(line),traceFile))
+	while(fgets(line, sizeof(line), traceFile))
 	{
-		if(strlen(line)==2)
+		if(strlen(line) == 2)
 		{
 			continue;
 		}
@@ -331,11 +343,11 @@ void trace_read(struct config_info *config,struct trace_info *trace)
         //time:ms, lba:sectors, size:sectors, type:1<->write 0<-->read
 		sscanf(line,"%lf %lld %d %d",&req->time,&req->lba,&req->size,&req->type);
 		//push into request queue
-		req->time=req->time*1000;	//ms-->us
-		req->size=req->size*BYTE_PER_BLOCK;
-		req->lba=req->lba*BYTE_PER_BLOCK;
-        req->waitTime=0;
-		queue_push(trace,req);
+		req->time=req->time * 1000;	//ms-->us
+		req->size=req->size * BYTE_PER_BLOCK;
+		req->lba=req->lba * BYTE_PER_BLOCK;
+        req->waitTime = 0;
+		queue_push(trace, req);
 	}
 	fclose(traceFile);
 }
@@ -409,4 +421,51 @@ void queue_print(struct trace_info *trace)
 		printf("%lld\n",temp->waitTime);
 		temp = temp->next;
 	}
+}
+
+int count_nszone(struct config_info * config) {
+    struct zbc_device_info info;
+    unsigned long long lba = 0;
+    struct zbc_device *dev;
+    enum zbc_reporting_options ro = ZBC_RO_ALL;
+    struct zbc_zone *z, *zones = NULL;
+    unsigned int oflags;
+    unsigned int nr_zones;
+    int i, ret = 1;
+    int nszone_count = 0;
+    // open a device
+    ret = zbc_open(config->device, oflags | O_RDONLY, &dev);
+    if (ret != 0) {
+        printf("[TEST][ERROR][SENSE_KEY],open-device-failed\n");
+        printf("[TEST][ERROR][ASC_ASCQ],open-device-failed\n");
+        return -1;
+    }
+    // Get the number of zones
+    ret = zbc_report_nr_zones(dev, zbc_lba2sect(&info, lba), ro, &nr_zones);
+    if (ret != 0) {
+        fprintf(stderr, "[TEST][ERROR],zbc_report_nr_zones lba %llu, ro 0x%02x failed %d\n",
+                (unsigned long long)lba, (unsigned int)ro, ret);
+        ret = 1;
+    }
+    // Allocate zone array
+    zones = (struct zbc_zone *) calloc(nr_zones, sizeof(struct zbc_zone));
+    if (!zones) {
+        fprintf(stderr, "[TEST][ERROR],No memory\n");
+        ret = 1;
+    }
+    // Get zone information
+    ret = zbc_report_zones(dev, lba, ro, zones, &nr_zones);
+    if (ret != 0) {
+        fprintf(stderr, "[TEST][ERROR],zbc_report_zones failed %d\n", ret);
+        ret = 1;
+    }
+    // update resource
+    for (i = 0; i < (int)nr_zones; i++) {
+        z = &zones[i];
+        if (zbc_zone_conventional(z) || zbc_zone_non_seq(z)) {
+            if (zbc_zone_non_seq(z))
+                nszone_count++;
+        }
+    }
+    return nszone_count;
 }

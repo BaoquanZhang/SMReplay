@@ -16,6 +16,7 @@
 //#include <signal.h>
 //#include <sys/types.h>
 //#include <sys/stat.h>
+#include "libzbc/zbc.h"
 
 #define SUCCESS 1
 #define FAILURE 0
@@ -28,12 +29,13 @@
 
 #define BYTE_PER_BLOCK		    512     //blk size (bits) 
 #define LARGEST_REQUEST_SIZE	1024*2  //1MB Largest request size (blks)
-#define BLOCK_PER_DRIVE		    (long long)8*1024*1024*1024*2	//8TB Drive capacity (blks)
-
+#define BLOCK_PER_DRIVE		    (long long) 8*1024*1024*1024*2	//8TB Drive capacity (blks)
+#define NSZONE_INTERVAL 600 * 1000 * 1000 // 600s in us
 struct config_info{
 	char device[64];
 	char traceFileName[64];
 	char logFileName[64];
+	char zoneLog[64];
     unsigned int exec;
     unsigned int idle;
 };
@@ -52,6 +54,7 @@ struct trace_info{
 	unsigned int outNum;
 	long long latencySum;
 	FILE *logFile;
+    FILE *zoneLog;
 
 	struct req_info *front;
 	struct req_info *rear;
@@ -83,6 +86,7 @@ long long time_elapsed(long long begin);
 static void handle_aio(sigval_t sigval);
 static void submit_aio(int fd, void *buf,struct req_info *req,struct trace_info *trace,long long initTime);
 static void init_aio();
+int count_nszone(struct config_info * config);
 
 //queue.c
 void queue_push(struct trace_info *trace,struct req_info *req);
