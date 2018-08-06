@@ -1,0 +1,14 @@
+reset
+set terminal postscript eps color enhanced size 2.5,1.7
+#set yrange [0:5000]
+set style data histogram
+set style fill solid border -1
+set boxwidth 0.9
+set key right
+#set xtic rotate by -45 scale 0
+#set bmargin 10 
+set xlabel "Arrival Speed (ms)"
+set ylabel "Maximal I/O Response Time (s)"
+set output 'arrival_reponse.eps'
+plot 'max_wait.txt' using 2:xtic(1) title "No Control",\
+'max_wait.txt' using 3:xtic(1) title "< 5 : 2 >",\

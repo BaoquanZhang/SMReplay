@@ -1,0 +1,77 @@
+reset 
+set terminal postscript eps color enhanced size 10,3
+set output "delay_lat_new.eps"
+set multiplot layout 3,4 columnsfirst
+set label font "12"
+
+#====== 50ms no ========
+unset ylabel
+unset xlabel
+#set key title "<Execution : Idle>"
+#set yrange [0:5000]
+plot '35GB_1MB_50ms_1024_10p_no.log' using ($1/1000/1000):($7/1000/1000) with linespoints lc 1 pt 4 pi 30000 notitle
+
+set xtics 10000
+unset xlabel
+#set yrange [600:1100]
+plot '50ms_nseq_no.log' using ($1):($2) with linespoints lc 1 pt 6 pi 5  notitle
+
+unset xlabel
+set xlabel '50ms No Control - time (s)' font "Times-Roman,20"
+#set xrange [0:20000]
+#set yrange [0:3]
+plot '35GB_1MB_50ms_1024_10p_no.log' using ($1/1000/1000):($6/1000/1000) notitle
+
+#====== 50ms idler ========
+unset ylabel
+unset xlabel
+#set key title "<Execution : Idle>"
+#set yrange [0:5000]
+plot '35GB_1MB_50ms_1024_10p_idle.log' using ($1/1000/1000):($7/1000/1000) with linespoints lc 1 pt 4 pi 30000 notitle
+
+set xtics 10000
+unset xlabel
+#set yrange [600:1100]
+plot '50ms_nseq_idle.log' using ($1):($2) with linespoints lc 1 pt 6 pi 5  notitle
+
+unset xlabel
+set xlabel '50ms Idler - time (s)' font "Times-Roman,20"
+#set xrange [0:20000]
+#set yrange [0:3]
+plot '35GB_1MB_50ms_1024_10p_idle.log' using ($1/1000/1000):($6/1000/1000) notitle
+
+#====== 100ms no ========
+unset ylabel
+unset xlabel
+#set key title "<Execution : Idle>"
+#set yrange [0:5000]
+plot '35GB_1MB_100ms_1024_10p_no.log' using ($1/1000/1000):($7/1000/1000) with linespoints lc 1 pt 4 pi 30000 notitle
+
+set xtics 10000
+unset xlabel
+#set yrange [600:1100]
+plot '100ms_nseq_no.log' using ($1):($2) with linespoints lc 1 pt 6 pi 5  notitle
+
+unset xlabel
+set xlabel '100ms No Control - time (s)' font "Times-Roman,20"
+#set xrange [0:20000]
+#set yrange [0:3]
+plot '35GB_1MB_50ms_1024_10p_no.log' using ($1/1000/1000):($6/1000/1000) notitle
+
+#====== 100ms idler ========
+unset ylabel
+unset xlabel
+#set key title "<Execution : Idle>"
+#set yrange [0:5000]
+plot '35GB_1MB_100ms_1024_10p_idle.log' using ($1/1000/1000):($7/1000/1000) with linespoints lc 1 pt 4 pi 30000 notitle
+
+set xtics 10000
+unset xlabel
+#set yrange [600:1100]
+plot '100ms_nseq_idle.log' using ($1):($2) with linespoints lc 1 pt 6 pi 5  notitle
+
+unset xlabel
+set xlabel '100ms Idler - time (s)' font "Times-Roman,20"
+#set xrange [0:20000]
+#set yrange [0:3]
+plot '35GB_1MB_100ms_1024_10p_idle.log' using ($1/1000/1000):($6/1000/1000) notitle
