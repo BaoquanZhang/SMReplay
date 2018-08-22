@@ -1,3 +1,5 @@
 # Untracked files:
 *.trace
 *.txt
+*.ini
+*.log
