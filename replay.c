@@ -1,8 +1,6 @@
 #include "replay.h"
 #include <pthread.h>
 
-pthread_mutex_t g_io_mutex;
-
 void main(int argc, char *argv[])
 {
 	replay(argv[1]);
@@ -79,8 +77,11 @@ void replay(char *configName)
         }
 
         if (config->idle > 0) {
-            if (nowTime-execTime > config->exec * 1000000)
+            if (nowTime - execTime > config->exec * 1000000)
             {
+                while (sub_count > 0) {
+                    nowTime = time_elapsed(initTime);
+                }
                 sleep(config->idle);
                 execTime=time_elapsed(initTime);
             }
@@ -90,13 +91,12 @@ void replay(char *configName)
 		reqTime = req->time;
 		nowTime = time_elapsed(initTime);
 
-		while (nowTime < reqTime)
+		while (nowTime < reqTime || sub_count >= Q_DEPTH)
 		{
 			//usleep(waitTime);
 			nowTime = time_elapsed(initTime);
 		}
                
-        pthread_mutex_lock(&g_io_mutex); 
 
         nowTime = time_elapsed(initTime);
         req->waitTime = nowTime - reqTime;
@@ -127,7 +127,7 @@ static void handle_aio(sigval_t sigval)
 	int error;
 	int count;
 
-    pthread_mutex_unlock(&g_io_mutex);
+    sub_count--; // reduce the submitted requests
 
 	cb=(struct aiocb_info *)sigval.sival_ptr;
 	latency_submit = time_elapsed(cb->beginTime_submit);
@@ -174,6 +174,8 @@ static void submit_aio(int fd, void *buf, struct req_info *req,struct trace_info
 	char *buf_new;
 	int error=0;
 	//struct sigaction *sig_act;
+
+    sub_count++; // increase the submitted count
 
 	cb=(struct aiocb_info *)malloc(sizeof(struct aiocb_info));
 	memset(cb,0,sizeof(struct aiocb_info));//where to free this?
@@ -230,7 +232,6 @@ static void submit_aio(int fd, void *buf, struct req_info *req,struct trace_info
 	//while(aio_error(cb->aiocb)==EINPROGRESS);
 	if(error)
 	{
-        pthread_mutex_unlock(&g_io_mutex);
 		fprintf(stderr, "Error performing i/o");
 		exit(-1);
 	}

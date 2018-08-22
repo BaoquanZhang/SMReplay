@@ -1,0 +1,80 @@
+reset 
+set terminal postscript eps color enhanced size 10,3
+set output "delay_len.eps"
+set multiplot layout 3,4 columnsfirst
+set label font "12"
+#======stg1 no ========
+unset ylabel
+unset xlabel
+set ylabel 'I/O wait time (s)'
+#set xtics 10000
+#set yrange [0:350]
+#set ytics 50
+plot 'no.log' using ($1/1000/1000):($2/1000/1000) with linespoints lc 1 pt 4 pi 30000 notitle
+
+unset xlabel
+set ylabel 'Non-seq zone'
+#set yrange [0:240]
+#set ytics 30
+plot 'mc_no.log' using ($1/1000/1000):($2) with linespoints lc 1 pt 6 pi 10 notitle
+
+set xlabel 'No Control - time (s)' font "Times-Roman,20"
+#set ylabel 'Latency (s)'
+#set yrange [0:4]
+#set ytics 0.5
+plot 'no.log' using ($1/1000/1000):($6/1000/1000) notitle
+
+#======5:5========
+unset ylabel
+unset xlabel
+#set yrange [0:350]
+#set ytics 50
+plot 'e20i2.log' using ($1/1000/1000):($2/1000/1000) with linespoints lc 1 pt 4 pi 30000 notitle
+
+#unset ylabel
+unset xlabel
+#set yrange [0:240]
+#set ytics 30
+plot 'e20i2_mc.log' using ($1/1000/1000):($2) with linespoints lc 1 pt 6  pi 5 notitle
+
+unset xlabel
+set xlabel 'e20i2 - time (s)' font "Times-Roman,20"
+#set yrange [0:4]
+#set ytics 0.5
+plot 'e20i2.log' using ($1/1000/1000):($6/1000/1000) notitle
+#======5:5========
+unset ylabel
+unset xlabel
+#set yrange [0:350]
+#set ytics 50
+plot 'e5i2.log' using ($1/1000/1000):($2/1000/1000) with linespoints lc 1 pt 4 pi 30000 notitle
+
+#unset ylabel
+unset xlabel
+#set yrange [0:240]
+#set ytics 30
+plot 'e5i2_mc.log' using ($1/1000/1000):($2) with linespoints lc 1 pt 6  pi 5 notitle
+
+unset xlabel
+set xlabel 'e5i2 - time (s)' font "Times-Roman,20"
+#set yrange [0:4]
+#set ytics 0.5
+plot 'e5i2.log' using ($1/1000/1000):($6/1000/1000) notitle
+#======5:5========
+unset ylabel
+unset xlabel
+#set yrange [0:350]
+#set ytics 50
+plot 'e2i2.log' using ($1/1000/1000):($2/1000/1000) with linespoints lc 1 pt 4 pi 30000 notitle
+
+#unset ylabel
+unset xlabel
+#set yrange [0:240]
+#set ytics 30
+plot 'e2i2_mc.log' using ($1/1000/1000):($2) with linespoints lc 1 pt 6  pi 5 notitle
+
+unset xlabel
+set xlabel 'e2i2 - time (s)' font "Times-Roman,20"
+#set yrange [0:4]
+#set ytics 0.5
+plot 'e2i2.log' using ($1/1000/1000):($6/1000/1000) notitle

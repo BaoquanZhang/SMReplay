@@ -23,6 +23,7 @@
 #define BUFSIZE	300
 #define RAMSIZE 60 //MB
 
+#define Q_DEPTH 128
 #define MEM_ALIGN		        512  // Memory alignment
 #define USE_GLOBAL_BUFF		    1 
 #define AIO_THREAD_POOL_SIZE    50
@@ -92,5 +93,7 @@ int count_nszone(struct config_info * config);
 void queue_push(struct trace_info *trace,struct req_info *req);
 void queue_pop(struct trace_info *trace,struct req_info *req);
 void queue_print(struct trace_info *trace);
+
+int sub_count = 0;
 
 #endif
