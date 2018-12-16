@@ -1,10 +1,7 @@
 #include "replay.h"
 #include <pthread.h>
 
-//#define __B_Zhang__
-
-pthread_mutex_t g_io_mutex;
-
+long long execTime = 0;
 void main(int argc, char *argv[])
 {
 	replay(argv[1]);
@@ -22,91 +19,91 @@ void replay(char *configName)
 	int fd;
 	char *buf;
 	int i;
-	long long initTime,nowTime,reqTime,waitTime;
-        long long execTime;//for bzhang's experiment
+	long long initTime, nowTime, reqTime, waitTime;
 	
-	config=(struct config_info *)malloc(sizeof(struct config_info));
-	memset(config,0,sizeof(struct config_info));
-	trace=(struct trace_info *)malloc(sizeof(struct trace_info));
-	memset(trace,0,sizeof(struct trace_info));
-	req=(struct req_info *)malloc(sizeof(struct req_info));
-	memset(req,0,sizeof(struct req_info));
+	config = (struct config_info *) malloc(sizeof(struct config_info));
+	memset(config, 0, sizeof(struct config_info));
+	trace = (struct trace_info *) malloc(sizeof(struct trace_info));
+	memset(trace, 0, sizeof(struct trace_info));
+	req = (struct req_info *) malloc(sizeof(struct req_info));
+	memset(req, 0, sizeof(struct req_info));
 
-	config_read(config,configName);
-	printf("starting warm up with config %s----\n",configName);
-	trace_read(config,trace);
-	printf("starting replay IO trace %s----\n",config->traceFileName);
+	config_read(config, configName);
+	printf("starting warm up with config %s----\n", configName);
+	trace_read(config, trace);
+	printf("starting replay IO trace %s----\n", config->traceFileName);
 
 	//queue_print(trace);
 	//printf("trace->inNum=%d\n",trace->inNum);
 	//printf("trace->outNum=%d\n",trace->outNum);
 	//printf("trace->latencySum=%lld\n",trace->latencySum);
 
-	printf("config->device=%s\n",config->device);
+	printf("config->device= %s\n", config->device);
 	
 	fd = open(config->device, O_DIRECT | O_SYNC | O_RDWR); 
-	if(fd < 0) 
-	{
-                fprintf(stderr, "Value of errno: %d\n", errno);
-       	        printf("Cannot open\n");
-    	        exit(-1);
+	if (fd < 0) {
+        fprintf(stderr, "Value of errno: %d\n", errno);
+        printf("Cannot open\n");
+        exit(-1);
 	}
 
-	if (posix_memalign((void**)&buf, MEM_ALIGN, LARGEST_REQUEST_SIZE * BYTE_PER_BLOCK))
-	{
+	if (posix_memalign((void**)&buf, MEM_ALIGN, LARGEST_REQUEST_SIZE * BYTE_PER_BLOCK)) {
 		fprintf(stderr, "Error allocating buffer\n");
 		return;
 	}
-	for(i=0;i<LARGEST_REQUEST_SIZE*BYTE_PER_BLOCK;i++)
-	{
+
+	for (i = 0; i < LARGEST_REQUEST_SIZE * BYTE_PER_BLOCK; i++) {
 		//Generate random alphabets to write to file
-		buf[i]=(char)(rand()%26+65);
+		buf[i] = (char) (rand() % 26 + 65);
 	}
 
 	init_aio();
 
-	initTime=time_now();
-        execTime=0;
-	//printf("initTime=%lld\n",initTime);
-	while(trace->front)
-	{
-		nowTime=time_elapsed(initTime);
-                #ifdef  __B_Zhang__
-                if(nowTime-execTime > config->exec * 1000000)
-                {
-                        sleep(config->idle);
-                        execTime=time_elapsed(initTime);
-                }
-                #endif
-
-                queue_pop(trace,req);
-		reqTime=req->time;
-		//nowTime=time_elapsed(initTime);
-
-                // we comment the follow part out
-                // since we are considering to replay without timestamp
-		//while(nowTime < reqTime)
-		//{
-			//usleep(waitTime);
-		//	nowTime=time_elapsed(initTime);
-		//}
-               
-                pthread_mutex_lock(&g_io_mutex); 
-
-                nowTime=time_elapsed(initTime);
-                req->waitTime=nowTime-reqTime;
-                //printf("wait time =%lld us\n",waitTime);
-
-	        submit_aio(fd,buf,req,trace,initTime);
-	}
-        i=0;
-	while(trace->inNum > trace->outNum)
-	{
-		printf("trace->inNum=%d\n",trace->inNum);
-		printf("trace->outNum=%d\n",trace->outNum);
-		printf("begin sleepping 1 second------\n");
-		sleep(1);
-	}
+	initTime = time_now();
+    execTime = 0;
+    long long int last_time = 0;
+	printf("initTime = %lld\n", initTime);
+    trace->inNum = 0;
+    trace->outNum = 0;
+	while (trace->front) {
+		nowTime = time_elapsed(initTime);
+        queue_pop(trace, req);
+        //req_print(req);
+        reqTime = req->time;
+        nowTime = time_elapsed(initTime);
+        if (config->mode == 1) { 
+            /* independent I/O replayer */
+		    while(nowTime < reqTime) {
+                /* wait if the current time is smaller than
+                 * the request time stamp */
+                usleep(5000);
+                nowTime = time_elapsed(initTime);
+            } 
+        } else if (config->mode == 2) {
+            /* dependent I/O replayer 
+             * wait for the previous one finish */
+	        //printf("waiting previous req\n");
+            while (trace->inNum > trace->outNum);
+	        //printf("req time = %lld, last_time = %lld\n", reqTime, last_time);
+            unsigned int think_time = reqTime - last_time;
+	        //printf("think time = %d\n", think_time);
+            usleep(think_time);
+            last_time = reqTime;
+        } else {
+            printf("undefined replayer!\n");
+            exit(-1);
+        }
+        nowTime = time_elapsed(initTime);
+        req->waitTime = nowTime - reqTime;
+        //printf("wait time =%lld us\n", waitTime);
+        submit_aio(fd, buf, req, trace, initTime, config);
+    }
+    while (trace->inNum > trace->outNum) {
+        printf("trace->inNum=%d\n", trace->inNum);
+        printf("trace->outNum=%d\n", trace->outNum);
+        printf("begin sleepping 1 second------\n");
+        sleep(1);
+    }
 	//printf("average latency= %Lf\n",(long double)trace->latencySum/(long double)trace->inNum);
 	free(buf);
 	free(config);
@@ -115,36 +112,29 @@ void replay(char *configName)
 	free(req);
 }
 
-static void handle_aio(sigval_t sigval)
+static void handle_aio(__sigval_t sigval)
 {
 	struct aiocb_info *cb;
-	unsigned long long latency_submit,latency_issue;
+	unsigned long long latency_submit, latency_issue;
 	int error;
 	int count;
 
-        pthread_mutex_unlock(&g_io_mutex);
-
-	cb=(struct aiocb_info *)sigval.sival_ptr;
-	latency_submit=time_elapsed(cb->beginTime_submit);
-	latency_issue=time_elapsed(cb->beginTime_issue);
+	cb = (struct aiocb_info *) sigval.sival_ptr;
+	latency_submit = time_elapsed(cb->beginTime_submit);
+	latency_issue = time_elapsed(cb->beginTime_issue);
 	//cb->trace->latencySum+=latency;
 
-	error=aio_error(cb->aiocb);
-	if(error)
-	{
-		if(error != ECANCELED)
-		{
+	error = aio_error(cb->aiocb);
+	if (error) {
+		if (error != ECANCELED) {
 			fprintf(stderr,"Error completing i/o:%d\n",error);
-		}
-		else
-		{
+		} else {
 			printf("---ECANCELED error\n");
 		}
 		return;
 	}
-	count=aio_return(cb->aiocb);
-	if(count<(int)cb->aiocb->aio_nbytes)
-	{
+	count = aio_return(cb->aiocb);
+	if (count < (int) cb->aiocb->aio_nbytes) {
 		fprintf(stderr, "Warning I/O completed:%db but requested:%ldb\n",
 			count,cb->aiocb->aio_nbytes);
 	}
@@ -154,28 +144,29 @@ static void handle_aio(sigval_t sigval)
 
 	cb->trace->outNum++;
 	//printf("cb->trace->outNum=%d\n",cb->trace->outNum);
-	if(cb->trace->outNum%10000==0)
-	{
-		printf("---has replayed %d\n",cb->trace->outNum);
+	if(cb->trace->outNum%10000 == 0) {
+		printf("---has replayed %d\n", cb->trace->outNum);
 	}
 
 	free(cb->aiocb);
 	free(cb);
 }
 
-static void submit_aio(int fd, void *buf, struct req_info *req,struct trace_info *trace,long long initTime)
+static void submit_aio(int fd, void * buf, struct req_info * req, 
+        struct trace_info * trace, long long initTime, 
+        struct config_info * config)
 {
 	struct aiocb_info *cb;
 	char *buf_new;
-	int error=0;
+	int error = 0;
 	//struct sigaction *sig_act;
 
-	cb=(struct aiocb_info *)malloc(sizeof(struct aiocb_info));
-	memset(cb,0,sizeof(struct aiocb_info));//where to free this?
-	cb->aiocb=(struct aiocb *)malloc(sizeof(struct aiocb));
-	memset(cb->aiocb,0,sizeof(struct aiocb));//where to free this?
-	cb->req=(struct req_info *)malloc(sizeof(struct req_info));
-	memset(cb->req,0,sizeof(struct req_info));
+	cb = (struct aiocb_info *) malloc(sizeof(struct aiocb_info));
+	memset(cb, 0, sizeof(struct aiocb_info));//where to free this?
+	cb->aiocb = (struct aiocb *) malloc(sizeof(struct aiocb));
+	memset(cb->aiocb, 0, sizeof(struct aiocb));//where to free this?
+	cb->req = (struct req_info *) malloc(sizeof(struct req_info));
+	memset(cb->req, 0, sizeof(struct req_info));
 
 	cb->aiocb->aio_fildes = fd;
 	cb->aiocb->aio_nbytes = req->size;
@@ -188,45 +179,43 @@ static void submit_aio(int fd, void *buf, struct req_info *req,struct trace_info
 
 	//error=sigaction(SIGIO,sig_act,NULL);
 	//write and read different buffer
-	if(USE_GLOBAL_BUFF!=1)
-	{
-		if (posix_memalign((void**)&buf_new, MEM_ALIGN, req->size)) 
-		{
+	if (USE_GLOBAL_BUFF != 1) {
+		if (posix_memalign((void**) &buf_new, MEM_ALIGN, req->size)) {
 			fprintf(stderr, "Error allocating buffer\n");
 		}
 		cb->aiocb->aio_buf = buf_new;
-	}
-	else
-	{
+	} else {
 		cb->aiocb->aio_buf = buf;
 	}
-
-	//cb->req=req;	//WTF
-	cb->req->time=req->time;
-	cb->req->lba=req->lba;
-	cb->req->size=req->size;
-	cb->req->type=req->type;
-        cb->req->waitTime=req->waitTime;
+	cb->req->time = req->time;
+	cb->req->lba = req->lba;
+	cb->req->size = req->size;
+	cb->req->type = req->type;
+    cb->req->waitTime = req->waitTime;
 
 	/********************************/
-        cb->beginTime_submit=time_now();// latency from the req was submitted
-        cb->beginTime_issue=req->time+initTime; //latency from the req was issued 
-        /********************************/
-	cb->trace=trace;
+    cb->beginTime_submit = time_now();// latency from the req was submitted
+    cb->beginTime_issue = req->time+initTime; //latency from the req was issued 
+    /********************************/
 
+    /* wait here so that the wait time will be added
+     * into the latency */
+    if (config->idle > 0) {
+        long long nowTime = time_elapsed(initTime);
+        if (nowTime - execTime > config->exec * 1000000) {
+            usleep(config->idle * 1000000);
+            execTime = time_elapsed(initTime);
+        }
+    }
 
-	if(req->type==1)
-	{
+	cb->trace = trace;
+	if(req->type == 1) {
 		error=aio_write(cb->aiocb);
-	}
-	else //if(req->type==0)
-	{
+	} else if(req->type==0) {
 		error=aio_read(cb->aiocb);
 	}
 	//while(aio_error(cb->aiocb)==EINPROGRESS);
-	if(error)
-	{
-                pthread_mutex_unlock(&g_io_mutex);
+	if (error) {
 		fprintf(stderr, "Error performing i/o");
 		exit(-1);
 	}
@@ -250,56 +239,43 @@ void config_read(struct config_info *config,const char *filename)
 	char *ptr;
 	FILE *configFile;
 	
-	configFile=fopen(filename,"r");
-	if(configFile==NULL)
-	{
+	configFile = fopen(filename, "r");
+	if (configFile == NULL) {
 		printf("error: opening config file\n");
 		exit(-1);
 	}
 	//read config file
-	memset(line,0,sizeof(char)*BUFSIZE);
-	while(fgets(line,sizeof(line),configFile))
-	{
-                if(line[0]=='#'||line[0]==' ') 
-		{
+	memset(line, 0, sizeof(char) * BUFSIZE);
+	while(fgets(line, sizeof(line), configFile)) {
+        if (line[0]=='#' || line[0]==' ') {
 			continue;
 		}
-                ptr=strchr(line,'=');
-	    
-                if(!ptr)
-		{
+        ptr=strchr(line,'=');
+	    if (!ptr) {
 			continue;
 		} 
        	
-                name=ptr-line;	//the end of name string+1
-                value=name+1;	//the start of value string
-	        while(line[name-1]==' ') 
-		{
+        name = ptr - line;	//the end of name string+1
+        value = name + 1;	//the start of value string
+        
+        while (line[name-1]==' ')  {
 			name--;
 		}
-       	        line[name]=0;
-
-		if(strcmp(line,"device")==0)
-		{
-			sscanf(line+value,"%s",config->device);
+        line[name] = 0;
+		if (strcmp(line, "device") == 0) {
+			sscanf(line + value, "%s", config->device);
+		} else if (strcmp(line, "trace") == 0) {
+			sscanf(line + value, "%s",config->traceFileName);
+		} else if (strcmp(line, "log") == 0) {
+			sscanf(line + value, "%s", config->logFileName);
+		} else if (strcmp(line, "exectime") == 0) {
+			sscanf(line + value, "%f", &config->exec);
+		} else if(strcmp(line, "idletime") == 0) {
+			sscanf(line+value, "%f", &config->idle);
+		} else if(strcmp(line, "mode") == 0) {
+			sscanf(line+value, "%d", &config->mode);
 		}
-		else if(strcmp(line,"trace")==0)
-		{
-			sscanf(line+value,"%s",config->traceFileName);
-		}
-		else if(strcmp(line,"log")==0)
-		{
-			sscanf(line+value,"%s",config->logFileName);
-		}
-		else if(strcmp(line,"exectime")==0)
-		{
-			sscanf(line+value,"%d",&config->exec);
-		}
-		else if(strcmp(line,"idletime")==0)
-		{
-			sscanf(line+value,"%d",&config->idle);
-		}
-		memset(line,0,sizeof(char)*BUFSIZE);
+		memset(line, 0, sizeof(char) * BUFSIZE);
 	}
 	fclose(configFile);
 }
@@ -412,3 +388,7 @@ void queue_print(struct trace_info *trace)
 		temp = temp->next;
 	}
 }
+void req_print(struct req_info* req) {
+        printf("req: %lf, %lld, %d, %d\n", 
+                req->time, req->lba, req->size, req->type);
+    };

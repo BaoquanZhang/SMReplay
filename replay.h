@@ -27,15 +27,16 @@
 #define AIO_THREAD_POOL_SIZE    50
 
 #define BYTE_PER_BLOCK		    512     //blk size (bits) 
-#define LARGEST_REQUEST_SIZE	1024*2  //1MB Largest request size (blks)
-#define BLOCK_PER_DRIVE		    (long long)8*1024*1024*1024*2	//8TB Drive capacity (blks)
+#define LARGEST_REQUEST_SIZE	1024 * 2  //1MB Largest request size (blks)
+#define BLOCK_PER_DRIVE		    (long long) 8 * 1024 * 1024 * 1024 * 2	//8TB Drive capacity (blks)
 
 struct config_info{
 	char device[64];
 	char traceFileName[64];
 	char logFileName[64];
-    unsigned int exec;
-    unsigned int idle;
+    float  exec;
+    float idle;
+    unsigned int mode;
 };
 
 struct req_info{
@@ -80,9 +81,11 @@ void config_read(struct config_info *config,const char *filename);
 void trace_read(struct config_info *config,struct trace_info *trace);
 long long time_now();
 long long time_elapsed(long long begin);
-static void handle_aio(sigval_t sigval);
-static void submit_aio(int fd, void *buf,struct req_info *req,struct trace_info *trace,long long initTime);
+static void handle_aio(__sigval_t sigval);
+static void submit_aio(int fd, void * buf, struct req_info *req,
+        struct trace_info * trace, long long initTime, struct config_info * config);
 static void init_aio();
+void req_print(struct req_info* req);
 
 //queue.c
 void queue_push(struct trace_info *trace,struct req_info *req);
