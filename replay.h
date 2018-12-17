@@ -30,7 +30,7 @@
 #define LARGEST_REQUEST_SIZE	1024 * 2  //1MB Largest request size (blks)
 #define BLOCK_PER_DRIVE		    (long long) 8 * 1024 * 1024 * 1024 * 2	//8TB Drive capacity (blks)
 
-struct config_info{
+struct config_info {
 	char device[64];
 	char traceFileName[64];
 	char logFileName[64];
@@ -39,7 +39,7 @@ struct config_info{
     unsigned int mode;
 };
 
-struct req_info{
+struct req_info {
 	double time;
 	long long lba;
 	unsigned int size;
@@ -48,8 +48,9 @@ struct req_info{
 	struct req_info *next;
 };
 
-struct trace_info{
-	unsigned int inNum;
+struct trace_info {
+	unsigned int totalNum;
+	unsigned int subNum;
 	unsigned int outNum;
 	long long latencySum;
 	FILE *logFile;
@@ -58,7 +59,7 @@ struct trace_info{
 	struct req_info *rear;
 };
 
-struct aiocb_info{
+struct aiocb_info {
 	struct aiocb* aiocb;
 	///* The order of these fields is implementation-dependent */
 	//int             aio_fildes;     /* File descriptor */

@@ -63,7 +63,7 @@ void replay(char *configName)
     execTime = 0;
     long long int last_time = 0;
 	printf("initTime = %lld\n", initTime);
-    trace->inNum = 0;
+    trace->subNum = 0;
     trace->outNum = 0;
 	while (trace->front) {
 		nowTime = time_elapsed(initTime);
@@ -82,11 +82,11 @@ void replay(char *configName)
         } else if (config->mode == 2) {
             /* dependent I/O replayer 
              * wait for the previous one finish */
-	        //printf("waiting previous req\n");
-            while (trace->inNum > trace->outNum);
-	        //printf("req time = %lld, last_time = %lld\n", reqTime, last_time);
+            while (trace->subNum > trace->outNum) {
+                usleep(5000);
+            }
+            //sleep(2);
             unsigned int think_time = reqTime - last_time;
-	        //printf("think time = %d\n", think_time);
             usleep(think_time);
             last_time = reqTime;
         } else {
@@ -98,8 +98,8 @@ void replay(char *configName)
         //printf("wait time =%lld us\n", waitTime);
         submit_aio(fd, buf, req, trace, initTime, config);
     }
-    while (trace->inNum > trace->outNum) {
-        printf("trace->inNum=%d\n", trace->inNum);
+    while (trace->totalNum > trace->outNum) {
+        printf("trace->totalNum=%d\n", trace->totalNum);
         printf("trace->outNum=%d\n", trace->outNum);
         printf("begin sleepping 1 second------\n");
         sleep(1);
@@ -195,7 +195,7 @@ static void submit_aio(int fd, void * buf, struct req_info * req,
 
 	/********************************/
     cb->beginTime_submit = time_now();// latency from the req was submitted
-    cb->beginTime_issue = req->time+initTime; //latency from the req was issued 
+    cb->beginTime_issue = req->time + initTime; //latency from the req was issued 
     /********************************/
 
     /* wait here so that the wait time will be added
@@ -207,6 +207,7 @@ static void submit_aio(int fd, void * buf, struct req_info * req,
             execTime = time_elapsed(initTime);
         }
     }
+    trace->subNum++;
 
 	cb->trace = trace;
 	if(req->type == 1) {
@@ -294,7 +295,7 @@ void trace_read(struct config_info *config,struct trace_info *trace)
 		exit(-1);
 	}
 	//initialize trace file parameters
-	trace->inNum=0;
+	trace->totalNum=0;
 	trace->outNum=0;
 	trace->latencySum=0;
 	trace->logFile=fopen(config->logFileName,"w");
@@ -305,7 +306,7 @@ void trace_read(struct config_info *config,struct trace_info *trace)
 		{
 			continue;
 		}
-		trace->inNum++;	//track the process of IO requests
+		trace->totalNum++;	//track the process of IO requests
         //time:ms, lba:sectors, size:sectors, type:1<->write 0<-->read
 		sscanf(line,"%lf %lld %d %d",&req->time,&req->lba,&req->size,&req->type);
 		//push into request queue

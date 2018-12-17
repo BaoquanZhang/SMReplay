@@ -1,5 +1,6 @@
 # Untracked files:
 [...]
-traces/
-logs/
+traces/*
+logs/*
+config/*
 [...]
