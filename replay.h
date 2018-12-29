@@ -37,6 +37,7 @@ struct config_info {
     float  exec;
     float idle;
     unsigned int mode;
+    unsigned int thread;
 };
 
 struct req_info {

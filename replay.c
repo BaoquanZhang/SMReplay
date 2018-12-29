@@ -82,7 +82,7 @@ void replay(char *configName)
         } else if (config->mode == 2) {
             /* dependent I/O replayer 
              * wait for the previous one finish */
-            while (trace->subNum > trace->outNum) {
+            while (trace->subNum - trace->outNum > config->thread - 1) {
                 usleep(5000);
             }
             //sleep(2);
@@ -275,6 +275,8 @@ void config_read(struct config_info *config,const char *filename)
 			sscanf(line+value, "%f", &config->idle);
 		} else if(strcmp(line, "mode") == 0) {
 			sscanf(line+value, "%d", &config->mode);
+		} else if(strcmp(line, "thread") == 0) {
+			sscanf(line+value, "%d", &config->thread);
 		}
 		memset(line, 0, sizeof(char) * BUFSIZE);
 	}

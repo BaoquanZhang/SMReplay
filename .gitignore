@@ -1,6 +1,7 @@
 # Untracked files:
-[...]
 traces/*
 logs/*
 config/*
-[...]
+*.txt
+*.log
+*.ini
